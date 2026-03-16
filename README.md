@@ -1,4 +1,4 @@
-# CPS714-Project-Library-Catalog
+# COE892-Project-Automated Library System
 
 everything in master branch.
 
