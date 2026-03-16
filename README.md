@@ -1,6 +1,6 @@
 # COE892-Project-Automated Library System
 
-everything in master branch.
+download repo, open terminal in the downloaded folder
 
 npm install
 
