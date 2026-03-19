@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Catalog from './components/Catalog';
 import Login from './components/Login';
 import Account from './components/Account';

@@ -1,6 +1,4 @@
-import { LibraryItem } from '../types';
-
-export const mockLibraryItems: LibraryItem[] = [
+export const seedLibraryItems = [
   {
     id: '1',
     title: 'The Great Gatsby',
@@ -78,12 +76,12 @@ export const mockLibraryItems: LibraryItem[] = [
   },
   {
     id: '6',
-    title: 'Harry Potter and the Philosopher\'s Stone',
+    title: "Harry Potter and the Philosopher's Stone",
     author: 'J.K. Rowling',
     genre: 'Fantasy',
     format: 'book',
     status: 'checked-out',
-    description: 'The first novel in the Harry Potter series, following Harry\'s discovery of his magical heritage.',
+    description: "The first novel in the Harry Potter series, following Harry's discovery of his magical heritage.",
     publishedDate: '1997-06-26',
     location: 'Young Adult Section',
     isbn: '9780747532699',
@@ -146,33 +144,7 @@ export const mockLibraryItems: LibraryItem[] = [
   }
 ];
 
-export const genres = [
-  'All Genres',
-  'Classic Literature',
-  'Dystopian Fiction',
-  'Romance',
-  'Fantasy',
-  'Science Fiction',
-  'Drama',
-  'Nature'
-];
-
-export const formats = [
-  'All Formats',
-  'book',
-  'dvd',
-  'audiobook',
-  'magazine'
-];
-
-export const availabilityOptions = [
-  'All Status',
-  'available',
-  'checked-out',
-  'on-hold'
-];
-
-export const mockUser = {
+export const seedUser = {
   id: 'u1',
   name: 'John Doe',
   email: 'john.doe@torontolibrary.ca',
@@ -180,26 +152,34 @@ export const mockUser = {
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
 };
 
-export const mockBorrowedItems = [
+const today = new Date();
+const twoDaysFromNow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 2)
+  .toISOString()
+  .split('T')[0];
+
+export const seedBorrowedItems = [
   {
     id: 'b1',
-    item: mockLibraryItems[1], // To Kill a Mockingbird
+    itemId: '2',
+    userId: 'u1',
     borrowDate: '2024-03-01',
     dueDate: '2024-03-15',
     renewals: 0
   },
   {
     id: 'b2',
-    item: mockLibraryItems[5], // Harry Potter
+    itemId: '6',
+    userId: 'u1',
     borrowDate: '2024-02-20',
-    dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // Due in 2 days
+    dueDate: twoDaysFromNow,
     renewals: 1
   },
   {
     id: 'b3',
-    item: mockLibraryItems[6], // Lord of the Rings
+    itemId: '7',
+    userId: 'u1',
     borrowDate: '2024-01-10',
-    dueDate: '2024-01-24', // Overdue mock data
+    dueDate: '2024-01-24',
     renewals: 3
   }
 ];

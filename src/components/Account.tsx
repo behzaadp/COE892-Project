@@ -1,30 +1,66 @@
-// src/components/Account.tsx
-import React, { useState } from 'react';
-import { BorrowedItem } from '../types';
-import { mockUser, mockBorrowedItems } from '../data/mockData';
-import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { BorrowedItem, User } from '../types';
+import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User as UserIcon } from 'lucide-react';
+import { fetchBorrowedItems, fetchUser, renewBorrowedItem } from '../lib/api';
+
+const ACTIVE_USER_ID = 'u1';
 
 const Account: React.FC = () => {
-  const [borrowedItems, setBorrowedItems] = useState<BorrowedItem[]>(mockBorrowedItems);
+  const [user, setUser] = useState<User | null>(null);
+  const [borrowedItems, setBorrowedItems] = useState<BorrowedItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [renewingId, setRenewingId] = useState<string | null>(null);
 
-  // Functionality to renew an item (extends date by 14 days)
-  const handleRenew = (id: string) => {
-    setBorrowedItems(items => items.map(item => {
-      if (item.id === id) {
-        const currentDue = new Date(item.dueDate);
-        const newDue = new Date(currentDue.setDate(currentDue.getDate() + 14));
-        return {
-          ...item,
-          dueDate: newDue.toISOString().split('T')[0],
-          renewals: item.renewals + 1
-        };
-      }
-      return item;
-    }));
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    Promise.all([fetchUser(ACTIVE_USER_ID), fetchBorrowedItems(ACTIVE_USER_ID)])
+      .then(([userData, borrowedData]) => {
+        if (!active) return;
+        setUser(userData);
+        setBorrowedItems(borrowedData);
+      })
+      .catch((err) => {
+        if (!active) return;
+        const message = err instanceof Error ? err.message : 'Failed to load account data';
+        setError(message);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
+
+  const retryLoad = () => {
+    setRefreshKey((key) => key + 1);
+  };
+
+  const handleRenew = async (id: string) => {
+    setActionMessage(null);
+    setRenewingId(id);
+    try {
+      const updated = await renewBorrowedItem(id);
+      setBorrowedItems((items) => items.map((item) => (item.id === id ? updated : item)));
+      setActionMessage('Renewal successful. Due date extended by 14 days.');
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : 'Unable to renew item right now.');
+    } finally {
+      setRenewingId(null);
+    }
   };
 
   const isOverdue = (dateString: string) => {
-    return new Date(dateString).getTime() < new Date().setHours(0,0,0,0);
+    return new Date(dateString).getTime() < new Date().setHours(0, 0, 0, 0);
   };
 
   const getDaysRemaining = (dateString: string) => {
@@ -32,28 +68,63 @@ const Account: React.FC = () => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-76px)] flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-library-primary border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-gray-600">Loading your account...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[calc(100vh-76px)] flex items-center justify-center bg-red-50 px-4">
+        <div className="bg-white border border-red-200 rounded-2xl p-8 text-center max-w-md shadow-sm">
+          <h2 className="text-2xl font-semibold text-red-700 mb-3">Unable to load account</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={retryLoad}
+            className="px-6 py-2 rounded-lg bg-library-primary text-white font-semibold hover:bg-library-secondary transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[calc(100vh-76px)] bg-gray-50 py-10">
       <div className="container mx-auto px-4 max-w-5xl">
-        
-        {/* User Profile Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-library-accent opacity-10 rounded-bl-full -z-10"></div>
-          <img 
-            src={mockUser.avatar} 
-            alt="Profile" 
-            className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg z-10"
-          />
-          <div className="text-center md:text-left z-10">
-            <h1 className="text-4xl font-bold text-gray-900 font-serif mb-2">{mockUser.name}</h1>
-            <p className="text-gray-600 flex items-center justify-center md:justify-start gap-2 mb-2">
-              <User className="h-5 w-5 text-library-secondary" /> {mockUser.email}
-            </p>
-            <p className="text-sm font-medium text-library-primary bg-library-primary bg-opacity-10 inline-block px-3 py-1 rounded-full">
-              Library Member since {new Date(mockUser.memberSince).toLocaleDateString()}
-            </p>
+        {actionMessage && (
+          <div className="mb-6 p-4 rounded-xl border text-sm font-medium bg-blue-50 border-blue-200 text-blue-800">
+            {actionMessage}
           </div>
-        </div>
+        )}
+
+        {/* User Profile Card */}
+        {user && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-library-accent opacity-10 rounded-bl-full -z-10" />
+            <img
+              src={user.avatar || 'https://placehold.co/128x128?text=User'}
+              alt="Profile"
+              className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg z-10"
+            />
+            <div className="text-center md:text-left z-10">
+              <h1 className="text-4xl font-bold text-gray-900 font-serif mb-2">{user.name}</h1>
+              <p className="text-gray-600 flex items-center justify-center md:justify-start gap-2 mb-2">
+                <UserIcon className="h-5 w-5 text-library-secondary" /> {user.email}
+              </p>
+              <p className="text-sm font-medium text-library-primary bg-library-primary bg-opacity-10 inline-block px-3 py-1 rounded-full">
+                Library Member since {new Date(user.memberSince).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Borrowed Items Section */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
@@ -63,16 +134,22 @@ const Account: React.FC = () => {
           </h2>
 
           <div className="grid grid-cols-1 gap-6">
-            {borrowedItems.map(borrowed => {
+            {borrowedItems.map((borrowed) => {
               const overdue = isOverdue(borrowed.dueDate);
               const daysRemaining = getDaysRemaining(borrowed.dueDate);
-              
+              const disableRenew = borrowed.renewals >= 3 || overdue || renewingId === borrowed.id;
+
               return (
-                <div key={borrowed.id} className={`flex flex-col md:flex-row gap-6 p-6 rounded-xl border-2 ${overdue ? 'border-red-200 bg-red-50/30' : 'border-gray-100'} transition-all hover:shadow-md bg-white`}>
+                <div
+                  key={borrowed.id}
+                  className={`flex flex-col md:flex-row gap-6 p-6 rounded-xl border-2 ${
+                    overdue ? 'border-red-200 bg-red-50/30' : 'border-gray-100'
+                  } transition-all hover:shadow-md bg-white`}
+                >
                   {borrowed.item.coverImage ? (
-                    <img 
-                      src={borrowed.item.coverImage} 
-                      alt={borrowed.item.title} 
+                    <img
+                      src={borrowed.item.coverImage}
+                      alt={borrowed.item.title}
                       className="w-32 h-48 object-cover rounded-lg shadow-md mx-auto md:mx-0"
                     />
                   ) : (
@@ -80,7 +157,7 @@ const Account: React.FC = () => {
                       <Book className="h-10 w-10 text-gray-300" />
                     </div>
                   )}
-                  
+
                   <div className="flex-1 flex flex-col justify-between">
                     <div>
                       <div className="flex flex-col md:flex-row justify-between items-start mb-2 gap-3">
@@ -100,7 +177,7 @@ const Account: React.FC = () => {
                         )}
                       </div>
                       <p className="text-gray-600 font-medium mb-6">by {borrowed.item.author}</p>
-                      
+
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm bg-gray-50 p-4 rounded-lg">
                         <div>
                           <p className="text-gray-500 uppercase tracking-wide text-xs mb-1">Borrowed Date</p>
@@ -113,24 +190,28 @@ const Account: React.FC = () => {
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-500 uppercase tracking-wide text-xs mb-1">Renewals Left</p>
-                          <p className="font-semibold text-gray-900">{3 - borrowed.renewals}</p>
+                          <p className="text-gray-500 uppercase tracking-wide text-xs mb-1">Renewals Used</p>
+                          <p className="font-semibold text-gray-900">{borrowed.renewals} / 3</p>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="mt-6 flex justify-end">
-                      <button 
+                      <button
                         onClick={() => handleRenew(borrowed.id)}
-                        disabled={borrowed.renewals >= 3 || overdue}
-                        className={`flex items-center justify-center w-full md:w-auto gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                          borrowed.renewals >= 3 || overdue 
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                        disabled={disableRenew}
+                        className={`group flex items-center justify-center w-full md:w-auto gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                          disableRenew
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             : 'bg-library-primary text-white hover:bg-library-secondary shadow-sm hover:shadow-md'
                         }`}
                       >
-                        <RefreshCw className={`h-4 w-4 ${borrowed.renewals < 3 && !overdue ? 'group-hover:rotate-180 transition-transform duration-500' : ''}`} />
-                        {overdue ? 'Cannot Renew Overdue Item' : 'Renew Item'}
+                        <RefreshCw
+                          className={`h-4 w-4 ${
+                            !disableRenew && renewingId !== borrowed.id ? 'group-hover:rotate-180 transition-transform duration-500' : ''
+                          }`}
+                        />
+                        {overdue ? 'Cannot Renew Overdue Item' : renewingId === borrowed.id ? 'Renewing...' : 'Renew Item'}
                       </button>
                     </div>
                   </div>

@@ -1,20 +1,25 @@
 import React from 'react';
 import { Filter } from 'lucide-react';
 import { SearchFilters } from '../types';
-import { genres, formats, availabilityOptions } from '../data/mockData';
 
 interface FilterSidebarProps {
   filters: SearchFilters;
   onFilterChange: (filters: SearchFilters) => void;
+  genres: string[];
+  formats: string[];
+  availabilityOptions: string[];
 }
 
-const FilterSidebar: React.FC<FilterSidebarProps> = ({ filters, onFilterChange }) => {
+const FilterSidebar: React.FC<FilterSidebarProps> = ({ filters, onFilterChange, genres, formats, availabilityOptions }) => {
   const handleFilterChange = (key: keyof SearchFilters, value: string) => {
     onFilterChange({
       ...filters,
       [key]: value
     });
   };
+
+  const isAllValue = (value: string) => value.toLowerCase().startsWith('all');
+  const formatLabel = (value: string) => value.replace('-', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-fit">
@@ -34,8 +39,8 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({ filters, onFilterChange }
           onChange={(e) => handleFilterChange('format', e.target.value)}
         >
           {formats.map((format) => (
-            <option key={format} value={format === 'All Formats' ? '' : format}>
-              {format.charAt(0).toUpperCase() + format.slice(1)}
+            <option key={format} value={isAllValue(format) ? '' : format}>
+              {formatLabel(format)}
             </option>
           ))}
         </select>
@@ -52,7 +57,7 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({ filters, onFilterChange }
           onChange={(e) => handleFilterChange('genre', e.target.value)}
         >
           {genres.map((genre) => (
-            <option key={genre} value={genre === 'All Genres' ? '' : genre}>
+            <option key={genre} value={isAllValue(genre) ? '' : genre}>
               {genre}
             </option>
           ))}
@@ -70,8 +75,8 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({ filters, onFilterChange }
           onChange={(e) => handleFilterChange('availability', e.target.value)}
         >
           {availabilityOptions.map((option) => (
-            <option key={option} value={option === 'All Status' ? '' : option}>
-              {option.charAt(0).toUpperCase() + option.slice(1).replace('-', ' ')}
+            <option key={option} value={isAllValue(option) ? '' : option}>
+              {formatLabel(option)}
             </option>
           ))}
         </select>

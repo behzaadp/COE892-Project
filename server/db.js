@@ -1,0 +1,101 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
+import { seedLibraryItems, seedUser, seedBorrowedItems } from './seedData.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dbPath = path.join(__dirname, 'library.db');
+
+export const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+
+export function initializeDatabase() {
+  db.exec('PRAGMA foreign_keys = ON;');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      memberSince TEXT NOT NULL,
+      avatar TEXT
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS library_items (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      author TEXT NOT NULL,
+      genre TEXT NOT NULL,
+      format TEXT NOT NULL,
+      status TEXT NOT NULL,
+      description TEXT NOT NULL,
+      publishedDate TEXT NOT NULL,
+      location TEXT NOT NULL,
+      isbn TEXT,
+      coverImage TEXT,
+      pages INTEGER,
+      language TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS borrowed_items (
+      id TEXT PRIMARY KEY,
+      itemId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      borrowDate TEXT NOT NULL,
+      dueDate TEXT NOT NULL,
+      renewals INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (itemId) REFERENCES library_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  seedTables();
+}
+
+function seedTables() {
+  const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
+  if (userCount === 0) {
+    db.prepare(`
+      INSERT INTO users (id, name, email, memberSince, avatar)
+      VALUES (@id, @name, @email, @memberSince, @avatar)
+    `).run(seedUser);
+  }
+
+  const itemCount = db.prepare('SELECT COUNT(*) AS count FROM library_items').get().count;
+  if (itemCount === 0) {
+    const insertItem = db.prepare(`
+      INSERT INTO library_items (id, title, author, genre, format, status, description, publishedDate, location, isbn, coverImage, pages, language)
+      VALUES (@id, @title, @author, @genre, @format, @status, @description, @publishedDate, @location, @isbn, @coverImage, @pages, @language)
+    `);
+    const insertMany = db.transaction((items) => {
+      for (const item of items) {
+        insertItem.run({
+          isbn: null,
+          coverImage: null,
+          pages: null,
+          ...item
+        });
+      }
+    });
+    insertMany(seedLibraryItems);
+  }
+
+  const borrowedCount = db.prepare('SELECT COUNT(*) AS count FROM borrowed_items').get().count;
+  if (borrowedCount === 0) {
+    const insertBorrowed = db.prepare(`
+      INSERT INTO borrowed_items (id, itemId, userId, borrowDate, dueDate, renewals)
+      VALUES (@id, @itemId, @userId, @borrowDate, @dueDate, @renewals)
+    `);
+    const insertManyBorrowed = db.transaction((items) => {
+      for (const item of items) {
+        insertBorrowed.run(item);
+      }
+    });
+    insertManyBorrowed(seedBorrowedItems);
+  }
+}
