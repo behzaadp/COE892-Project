@@ -8,6 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+server/node_modules/
+.env
+*.db-shm
+*.db-wal
 dist
 dist-ssr
 *.local
