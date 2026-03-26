@@ -1,12 +1,39 @@
 version: "3.8"
 
 services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: library-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      - PORT=4000
+      - GRPC_PORT=50051
+      - RABBITMQ_URL=amqp://rabbitmq
+      - RABBITMQ_EXCHANGE=library.events
+      - RABBITMQ_NOTIFICATIONS_QUEUE=library.notifications
+      - RABBITMQ_HOLDS_QUEUE=library.holds
     ports:
       - "4000:4000"
+      - "50051:50051"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     restart: always
 
   frontend:

@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package library;
+
+service LibraryService {
+  rpc ListLibraryItems (LibraryItemsRequest) returns (LibraryItemsResponse);
+  rpc GetLibraryItem (LibraryItemRequest) returns (LibraryItemResponse);
+  rpc GetUserBorrowedItems (UserBorrowedRequest) returns (BorrowedItemsResponse);
+  rpc RenewBorrowedItem (RenewBorrowedRequest) returns (BorrowedItemResponse);
+  rpc PlaceHoldRequest (HoldRequest) returns (HoldResponse);
+}
+
+message LibraryItemsRequest {
+  string searchTerm = 1;
+  string genre = 2;
+  string format = 3;
+  string availability = 4;
+}
+
+message LibraryItemRequest {
+  string id = 1;
+}
+
+message LibraryItem {
+  string id = 1;
+  string title = 2;
+  string author = 3;
+  string genre = 4;
+  string format = 5;
+  string status = 6;
+  string description = 7;
+  string publishedDate = 8;
+  string location = 9;
+  string isbn = 10;
+  string coverImage = 11;
+  int32 pages = 12;
+  string language = 13;
+}
+
+message LibraryItemsResponse {
+  repeated LibraryItem items = 1;
+}
+
+message LibraryItemResponse {
+  LibraryItem item = 1;
+}
+
+message UserBorrowedRequest {
+  string userId = 1;
+}
+
+message BorrowedItem {
+  string id = 1;
+  string borrowDate = 2;
+  string dueDate = 3;
+  int32 renewals = 4;
+  LibraryItem item = 5;
+  string userId = 6;
+}
+
+message BorrowedItemsResponse {
+  repeated BorrowedItem borrowed = 1;
+}
+
+message RenewBorrowedRequest {
+  string borrowedId = 1;
+}
+
+message BorrowedItemResponse {
+  BorrowedItem record = 1;
+}
+
+message HoldRequest {
+  string userId = 1;
+  string itemId = 2;
+  string contact = 3;
+}
+
+message HoldResponse {
+  bool accepted = 1;
+  string message = 2;
+}

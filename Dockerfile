@@ -11,4 +11,5 @@ RUN npm install
 COPY server/ .
 
 # Run correct file
+EXPOSE 4000 50051
 CMD ["node", "index.js"]

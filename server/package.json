@@ -13,6 +13,9 @@
     "server": "node server/index.js"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.12.2",
+    "@grpc/proto-loader": "^0.7.10",
+    "amqplib": "^0.10.4",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
