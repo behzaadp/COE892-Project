@@ -3,9 +3,11 @@ import { BorrowedItem, User } from '../types';
 import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User as UserIcon } from 'lucide-react';
 import { fetchBorrowedItems, fetchUser, renewBorrowedItem } from '../lib/api';
 
-const ACTIVE_USER_ID = 'u1';
+interface AccountProps {
+  userId: string;
+}
 
-const Account: React.FC = () => {
+const Account: React.FC<AccountProps> = ({ userId }) => {
   const [user, setUser] = useState<User | null>(null);
   const [borrowedItems, setBorrowedItems] = useState<BorrowedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ const Account: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    Promise.all([fetchUser(ACTIVE_USER_ID), fetchBorrowedItems(ACTIVE_USER_ID)])
+    Promise.all([fetchUser(userId), fetchBorrowedItems(userId)])
       .then(([userData, borrowedData]) => {
         if (!active) return;
         setUser(userData);

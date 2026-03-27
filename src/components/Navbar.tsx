@@ -1,6 +1,6 @@
 // src/components/Navbar.tsx
 import React from 'react';
-import { Book, User, LogOut, LogIn } from 'lucide-react';
+import { Book, User, LogOut, LogIn, UserPlus } from 'lucide-react';
 
 interface NavbarProps {
   currentPage: string;
@@ -48,13 +48,22 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, isLoggedIn, on
                 </button>
               </>
             ) : (
-              <button 
-                onClick={() => onNavigate('login')}
-                className={`flex items-center gap-2 bg-library-primary hover:bg-library-secondary px-4 py-2 rounded-lg transition-colors ${currentPage === 'login' ? 'ring-2 ring-library-accent' : ''}`}
-              >
-                <LogIn className="h-4 w-4" />
-                Sign In
-              </button>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => onNavigate('login')}
+                  className={`flex items-center gap-2 hover:text-library-accent px-3 py-2 transition-colors ${currentPage === 'login' ? 'text-library-accent' : ''}`}
+                >
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </button>
+                <button 
+                  onClick={() => onNavigate('signup')}
+                  className={`flex items-center gap-2 bg-library-primary hover:bg-library-secondary px-4 py-2 rounded-lg transition-colors shadow-sm ${currentPage === 'signup' ? 'ring-2 ring-library-accent' : ''}`}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Sign Up
+                </button>
+              </div>
             )}
           </div>
         </div>

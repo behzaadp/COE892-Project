@@ -17,7 +17,8 @@ export function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      email TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
       memberSince TEXT NOT NULL,
       avatar TEXT
     );
@@ -61,9 +62,9 @@ function seedTables() {
   const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
   if (userCount === 0) {
     db.prepare(`
-      INSERT INTO users (id, name, email, memberSince, avatar)
-      VALUES (@id, @name, @email, @memberSince, @avatar)
-    `).run(seedUser);
+      INSERT INTO users (id, name, email, password, memberSince, avatar)
+      VALUES (@id, @name, @email, @password, @memberSince, @avatar)
+    `).run({ ...seedUser, password: 'password123' }); // Default password for seed
   }
 
   const itemCount = db.prepare('SELECT COUNT(*) AS count FROM library_items').get().count;

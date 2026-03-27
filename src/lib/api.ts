@@ -52,3 +52,25 @@ export async function renewBorrowedItem(id: string): Promise<BorrowedItem> {
   });
   return handleResponse<BorrowedItem>(response);
 }
+
+export async function registerUser(userData: any): Promise<User> {
+  const response = await fetch(`${API_BASE_URL}/users/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(userData),
+  });
+  return handleResponse<User>(response);
+}
+
+export async function loginUser(credentials: any): Promise<User> {
+  const response = await fetch(`${API_BASE_URL}/users/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(credentials),
+  });
+  return handleResponse<User>(response);
+}

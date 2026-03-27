@@ -1,19 +1,27 @@
 // src/components/Login.tsx
 import React, { useState } from 'react';
 import { Lock, Mail, ArrowRight, Library } from 'lucide-react';
+import { loginUser } from '../lib/api';
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (userId: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
-      onLogin(); // Simulate successful login immediately
+    setError('');
+    try {
+      if (email && password) {
+        const user = await loginUser({ email, password });
+        onLogin(user.id); // Pass the real user ID to the App
+      }
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
     }
   };
 
@@ -31,6 +39,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             Sign in to manage your checked-out items and holds.
           </p>
         </div>
+        {error && <div className="p-3 bg-red-100 text-red-700 text-sm rounded-lg">{error}</div>}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>

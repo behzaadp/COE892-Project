@@ -5,21 +5,22 @@ import Login from './components/Login';
 import Account from './components/Account';
 import Navbar from './components/Navbar';
 import './App.css';
+import Signup from './components/Signup';
 
-type Page = 'catalog' | 'login' | 'account';
+type Page = 'catalog' | 'login' | 'account' | 'signup';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('catalog');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setCurrentPage('account'); // Redirect to account after login
+  const handleLogin = (userId: string) => {
+    setActiveUserId(userId);
+    setCurrentPage('account');
   };
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentPage('catalog'); // Redirect to home after logout
+    setActiveUserId(null);
+    setCurrentPage('catalog');
   };
 
   // State-based router
@@ -29,8 +30,10 @@ function App() {
         return <Catalog />;
       case 'login':
         return <Login onLogin={handleLogin} />;
+      case 'signup':
+        return <Signup onSignup={handleLogin} onNavigateLogin={() => setCurrentPage('login')} />;
       case 'account':
-        return isLoggedIn ? <Account /> : <Login onLogin={handleLogin} />;
+        return activeUserId ? <Account userId={activeUserId} /> : <Login onLogin={handleLogin} />;
       default:
         return <Catalog />;
     }
@@ -41,7 +44,7 @@ function App() {
       <Navbar 
         currentPage={currentPage} 
         onNavigate={(page) => setCurrentPage(page as Page)} 
-        isLoggedIn={isLoggedIn}
+        isLoggedIn={!!activeUserId}
         onLogout={handleLogout}
       />
       <main className="flex-1">
@@ -54,6 +57,7 @@ function App() {
       </footer>
     </div>
   );
+
 }
 
 export default App;

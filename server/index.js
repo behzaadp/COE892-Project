@@ -11,6 +11,8 @@ import {
 } from './services/libraryService.js';
 import { startGrpcServer } from './grpcServer.js';
 import { initializeMessaging, publishHoldRequest, publishNotificationEvent } from './messaging/rabbitmq.js';
+import { randomUUID } from 'node:crypto';
+import { db } from './db.js';
 
 initializeDatabase();
 
@@ -143,6 +145,62 @@ app.post(`${API_PREFIX}/library-items/:id/hold`, async (req, res) => {
   } catch (error) {
     console.error('Failed to enqueue hold request', error);
     res.status(500).json({ message: 'Failed to enqueue hold request' });
+  }
+});
+
+app.post(`${API_PREFIX}/users/signup`, (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (existingUser) {
+      return res.status(409).json({ message: 'Email is already registered' });
+    }
+
+    const id = randomUUID();
+    const memberSince = new Date().toISOString().split('T')[0];
+    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+
+    db.prepare(`
+      INSERT INTO users (id, name, email, password, memberSince, avatar)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, name, email, password, memberSince, avatar);
+
+    res.status(201).json({ id, name, email, memberSince, avatar });
+  } catch (error) {
+    console.error('Failed to sign up user', error);
+    res.status(500).json({ message: 'Failed to sign up user' });
+  }
+});
+
+app.post(`${API_PREFIX}/users/login`, (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Check credentials against the database
+    const user = db.prepare(`
+      SELECT id, name, email, memberSince, avatar 
+      FROM users 
+      WHERE email = ? AND password = ?
+    `).get(email, password);
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Failed to log in', error);
+    res.status(500).json({ message: 'Failed to log in' });
   }
 });
 
