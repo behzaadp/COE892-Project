@@ -1,13 +1,20 @@
-import React from 'react';
+// src/components/BookDetails.tsx
+import React, { useState } from 'react';
 import { LibraryItem } from '../types';
 import { X, Book, MapPin, Calendar, User, Tag, Clock } from 'lucide-react';
+import { borrowLibraryItem, addReadingList } from '../lib/api';
 
 interface BookDetailsProps {
   item: LibraryItem | null;
+  activeUserId: string | null;
+  onRequireLogin: () => void;
+  onSuccess: () => void;
   onClose: () => void;
 }
 
-const BookDetails: React.FC<BookDetailsProps> = ({ item, onClose }) => {
+const BookDetails: React.FC<BookDetailsProps> = ({ item, activeUserId, onRequireLogin, onSuccess, onClose }) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+
   if (!item) return null;
 
   const getStatusColor = (status: string) => {
@@ -17,6 +24,29 @@ const BookDetails: React.FC<BookDetailsProps> = ({ item, onClose }) => {
       case 'on-hold': return 'text-yellow-600 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
+  };
+
+  const handleBorrow = async () => {
+    if (!activeUserId) return onRequireLogin();
+    try {
+      setIsProcessing(true);
+      await borrowLibraryItem(item.id, activeUserId);
+      alert('Success! Item reserved and added to your Active Loans.');
+      onSuccess();
+    } catch (e: any) {
+      alert(e.message || 'Failed to borrow');
+    } finally { setIsProcessing(false); }
+  };
+
+  const handleAddReadingList = async () => {
+    if (!activeUserId) return onRequireLogin();
+    try {
+      setIsProcessing(true);
+      await addReadingList(activeUserId, item.id);
+      alert('Added to your Reading List!');
+    } catch (e: any) {
+      alert(e.message || 'Failed to add');
+    } finally { setIsProcessing(false); }
   };
 
   return (
@@ -122,12 +152,20 @@ const BookDetails: React.FC<BookDetailsProps> = ({ item, onClose }) => {
           
           <div className="mt-6 flex gap-3">
             {item.status === 'available' && (
-              <button className="bg-library-primary hover:bg-library-secondary text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200">
-                Reserve This Item
+              <button 
+                onClick={handleBorrow}
+                disabled={isProcessing}
+                className="bg-library-primary hover:bg-library-secondary text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50"
+              >
+                {isProcessing ? 'Processing...' : 'Reserve This Item'}
               </button>
             )}
-            <button className="border border-library-primary text-library-primary hover:bg-library-primary hover:text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200">
-              Add to Reading List
+            <button 
+              onClick={handleAddReadingList}
+              disabled={isProcessing}
+              className="border border-library-primary text-library-primary hover:bg-library-primary hover:text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50"
+            >
+               {isProcessing ? 'Processing...' : 'Add to Reading List'}
             </button>
           </div>
         </div>

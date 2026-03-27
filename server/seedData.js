@@ -12,7 +12,7 @@ export const seedLibraryItems = [
     isbn: '9780743273565',
     pages: 180,
     language: 'English',
-    coverImage: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&h=600&fit=crop'
+    coverImage: 'https://images.unsplash.com/photo-1615413833480-6e8427dbcc5e?w=400&h=600&fit=crop'
   },
   {
     id: '2',
@@ -42,7 +42,7 @@ export const seedLibraryItems = [
     isbn: '9780451524935',
     pages: 328,
     language: 'English',
-    coverImage: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&h=600&fit=crop'
+    coverImage: 'https://images.unsplash.com/photo-1622609184693-58079bb6742f?w=400&h=600&fit=crop'
   },
   {
     id: '4',
@@ -57,7 +57,7 @@ export const seedLibraryItems = [
     isbn: '9780141439518',
     pages: 432,
     language: 'English',
-    coverImage: 'https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=400&h=600&fit=crop'
+    coverImage: 'https://images.unsplash.com/photo-1657209956208-479abaebbfa3?w=400&h=600&fit=crop'
   },
   {
     id: '5',
@@ -87,7 +87,7 @@ export const seedLibraryItems = [
     isbn: '9780747532699',
     pages: 223,
     language: 'English',
-    coverImage: 'https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=400&h=600&fit=crop'
+    coverImage: 'https://images.unsplash.com/photo-1771712969766-b50d5cba6d96?w=400&h=600&fit=crop'
   },
   {
     id: '7',
@@ -101,7 +101,8 @@ export const seedLibraryItems = [
     location: 'Audiobook Section',
     isbn: '9780395489314',
     pages: 423,
-    language: 'English'
+    language: 'English',
+    coverImage: 'https://images.unsplash.com/photo-1618845072579-853968656c0e?w=400&h=600&fit=crop'
   },
   {
     id: '8',
@@ -113,7 +114,8 @@ export const seedLibraryItems = [
     description: 'A DVD of the acclaimed film adaptation about hope and friendship in prison.',
     publishedDate: '1994-09-23',
     location: 'DVD Section A',
-    language: 'English'
+    language: 'English',
+    coverImage: 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=400&h=600&fit=crop'
   },
   {
     id: '9',
@@ -128,7 +130,7 @@ export const seedLibraryItems = [
     isbn: '9780441172719',
     pages: 412,
     language: 'English',
-    coverImage: 'https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=400&h=600&fit=crop'
+    coverImage: 'https://images.unsplash.com/photo-1506773090264-ac0b07293a64?w=400&h=600&fit=crop'
   },
   {
     id: '10',
@@ -140,7 +142,8 @@ export const seedLibraryItems = [
     description: 'Special edition magazine featuring stunning wildlife photography and articles.',
     publishedDate: '2024-01-15',
     location: 'Magazine Rack',
-    language: 'English'
+    language: 'English',
+    coverImage: 'https://images.unsplash.com/photo-1623880132570-ab1b4297c8c2?w=400&h=600&fit=crop'
   }
 ];
 

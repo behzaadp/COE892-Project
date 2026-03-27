@@ -12,7 +12,12 @@ const fallbackMetadata: CatalogMetadata = {
   availabilityOptions: ['All Status']
 };
 
-const Catalog: React.FC = () => {
+interface CatalogProps {
+  activeUserId: string | null;
+  onRequireLogin: () => void;
+}
+
+const Catalog: React.FC<CatalogProps> = ({ activeUserId, onRequireLogin }) => {
   const [filters, setFilters] = useState<SearchFilters>({
     searchTerm: '',
     format: '',
@@ -26,6 +31,7 @@ const Catalog: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<CatalogMetadata | null>(null);
   const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -72,7 +78,7 @@ const Catalog: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters]);
+  }, [filters, refreshTrigger]);
 
   const displayMetadata = metadata ?? fallbackMetadata;
   const hasItems = items.length > 0;
@@ -162,6 +168,12 @@ const Catalog: React.FC = () => {
       {/* Book Details Modal */}
       <BookDetails
         item={selectedItem}
+        activeUserId={activeUserId}
+        onRequireLogin={onRequireLogin}
+        onSuccess={() => {
+          setRefreshTrigger(prev => prev + 1);
+          setSelectedItem(null);
+        }}
         onClose={() => setSelectedItem(null)}
       />
     </div>

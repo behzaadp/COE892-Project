@@ -55,6 +55,18 @@ export function initializeDatabase() {
     );
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reading_list (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      itemId TEXT NOT NULL,
+      addedAt TEXT NOT NULL,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (itemId) REFERENCES library_items(id) ON DELETE CASCADE,
+      UNIQUE(userId, itemId)
+    );
+  `);
+
   seedTables();
 }
 

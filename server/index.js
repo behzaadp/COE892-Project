@@ -7,7 +7,11 @@ import {
   getMetadata,
   getUserById,
   getBorrowedItemsByUser,
-  renewBorrowedItem
+  renewBorrowedItem,
+  borrowItem,
+  addToReadingList,
+  getReadingListByUser,
+  removeFromReadingList
 } from './services/libraryService.js';
 import { startGrpcServer } from './grpcServer.js';
 import { initializeMessaging, publishHoldRequest, publishNotificationEvent } from './messaging/rabbitmq.js';
@@ -202,6 +206,37 @@ app.post(`${API_PREFIX}/users/login`, (req, res) => {
     console.error('Failed to log in', error);
     res.status(500).json({ message: 'Failed to log in' });
   }
+});
+
+app.post(`${API_PREFIX}/library-items/:id/borrow`, (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: 'User ID required' });
+    borrowItem(userId, req.params.id);
+    res.json({ message: 'Item borrowed successfully' });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Failed to borrow item' });
+  }
+});
+
+app.get(`${API_PREFIX}/users/:id/reading-list`, (req, res) => {
+  try { res.json(getReadingListByUser(req.params.id)); } 
+  catch (error) { res.status(500).json({ message: 'Failed to fetch reading list' }); }
+});
+
+app.post(`${API_PREFIX}/users/:id/reading-list`, (req, res) => {
+  try {
+    const { itemId } = req.body;
+    addToReadingList(req.params.id, itemId);
+    res.json({ message: 'Added to reading list' });
+  } catch (error) { res.status(500).json({ message: 'Failed to add to reading list' }); }
+});
+
+app.delete(`${API_PREFIX}/users/:userId/reading-list/:itemId`, (req, res) => {
+  try {
+    removeFromReadingList(req.params.userId, req.params.itemId);
+    res.json({ message: 'Removed from reading list' });
+  } catch (error) { res.status(500).json({ message: 'Failed to remove from reading list' }); }
 });
 
 initializeMessaging().catch((error) => {

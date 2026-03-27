@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { randomUUID } from 'node:crypto';
 
 function buildFilters({ searchTerm = '', genre = '', format = '', availability = '' }) {
   const conditions = [];
@@ -160,4 +161,54 @@ export function renewBorrowedItem(borrowedId) {
       language: row.language
     }
   };
+}
+
+export function borrowItem(userId, itemId) {
+  const item = db.prepare('SELECT * FROM library_items WHERE id = ?').get(itemId);
+  if (!item || item.status !== 'available') throw new Error('Item is not available to borrow.');
+
+  const borrowDate = new Date();
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 14); // 14-day checkout limit
+
+  const borrowId = randomUUID();
+
+  // Use a transaction so both the item status and borrow record update together
+  db.transaction(() => {
+    db.prepare("UPDATE library_items SET status = 'checked-out' WHERE id = ?").run(itemId);
+    db.prepare(`
+      INSERT INTO borrowed_items (id, itemId, userId, borrowDate, dueDate, renewals)
+      VALUES (?, ?, ?, ?, ?, 0)
+    `).run(borrowId, itemId, userId, borrowDate.toISOString().split('T')[0], dueDate.toISOString().split('T')[0]);
+  })();
+
+  return { success: true };
+}
+
+export function addToReadingList(userId, itemId) {
+  try {
+    db.prepare(`
+      INSERT INTO reading_list (id, userId, itemId, addedAt)
+      VALUES (?, ?, ?, ?)
+    `).run(randomUUID(), userId, itemId, new Date().toISOString());
+    return { success: true };
+  } catch(e) {
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') return { success: true, message: 'Already in list' };
+    throw e;
+  }
+}
+
+export function getReadingListByUser(userId) {
+  return db.prepare(`
+    SELECT rl.id as listId, rl.addedAt, li.*
+    FROM reading_list rl
+    JOIN library_items li ON li.id = rl.itemId
+    WHERE rl.userId = ?
+    ORDER BY rl.addedAt DESC
+  `).all(userId);
+}
+
+export function removeFromReadingList(userId, itemId) {
+  db.prepare('DELETE FROM reading_list WHERE userId = ? AND itemId = ?').run(userId, itemId);
+  return { success: true };
 }

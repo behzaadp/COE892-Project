@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { BorrowedItem, User } from '../types';
-import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User as UserIcon } from 'lucide-react';
-import { fetchBorrowedItems, fetchUser, renewBorrowedItem } from '../lib/api';
+import { BorrowedItem, User, ReadingListItem } from '../types';
+import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User as UserIcon, Bookmark, Trash2 } from 'lucide-react';
+import { fetchBorrowedItems, fetchUser, renewBorrowedItem, fetchReadingList, removeReadingList } from '../lib/api';
 
 interface AccountProps {
   userId: string;
@@ -10,6 +10,7 @@ interface AccountProps {
 const Account: React.FC<AccountProps> = ({ userId }) => {
   const [user, setUser] = useState<User | null>(null);
   const [borrowedItems, setBorrowedItems] = useState<BorrowedItem[]>([]);
+  const [readingList, setReadingList] = useState<ReadingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -21,11 +22,12 @@ const Account: React.FC<AccountProps> = ({ userId }) => {
     setLoading(true);
     setError(null);
 
-    Promise.all([fetchUser(userId), fetchBorrowedItems(userId)])
-      .then(([userData, borrowedData]) => {
+    Promise.all([fetchUser(userId), fetchBorrowedItems(userId), fetchReadingList(userId)])
+      .then(([userData, borrowedData, listData]) => {
         if (!active) return;
         setUser(userData);
         setBorrowedItems(borrowedData);
+        setReadingList(listData);
       })
       .catch((err) => {
         if (!active) return;
@@ -41,7 +43,7 @@ const Account: React.FC<AccountProps> = ({ userId }) => {
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, userId]);
 
   const retryLoad = () => {
     setRefreshKey((key) => key + 1);
@@ -226,6 +228,52 @@ const Account: React.FC<AccountProps> = ({ userId }) => {
                 <Book className="h-16 w-16 mx-auto text-gray-300 mb-4" />
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No Active Loans</h3>
                 <p>You don't have any items checked out right now. Explore the catalog to find your next read!</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Reading List Section */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mt-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-8 flex items-center gap-3 border-b pb-4">
+            <Bookmark className="h-7 w-7 text-library-secondary" />
+            My Reading List ({readingList.length})
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {readingList.map((item) => (
+              <div key={item.listId} className="flex gap-4 p-4 border rounded-xl hover:shadow-sm transition-shadow bg-white">
+                {item.coverImage ? (
+                  <img src={item.coverImage} alt={item.title} className="w-16 h-24 object-cover rounded shadow" />
+                ) : (
+                   <div className="w-16 h-24 bg-gray-100 rounded flex items-center justify-center"><Book className="text-gray-300"/></div>
+                )}
+                <div className="flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 line-clamp-1">{item.title}</h3>
+                    <p className="text-sm text-gray-600 mb-2">by {item.author}</p>
+                    <p className="text-xs text-gray-400 mb-2">Added: {new Date(item.addedAt).toLocaleDateString()}</p>
+                  </div>
+                  
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await removeReadingList(userId, item.id);
+                        setReadingList(list => list.filter(l => l.id !== item.id));
+                      } catch (e) { alert('Failed to remove from reading list'); }
+                    }}
+                    className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1 font-medium w-fit"
+                  >
+                    <Trash2 className="w-4 h-4"/> Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {readingList.length === 0 && (
+              <div className="col-span-1 md:col-span-2 text-center py-10 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                <Bookmark className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+                <p>Your reading list is empty.</p>
               </div>
             )}
           </div>

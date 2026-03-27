@@ -4,8 +4,8 @@ import Catalog from './components/Catalog';
 import Login from './components/Login';
 import Account from './components/Account';
 import Navbar from './components/Navbar';
-import './App.css';
 import Signup from './components/Signup';
+import './App.css';
 
 type Page = 'catalog' | 'login' | 'account' | 'signup';
 
@@ -15,27 +15,46 @@ function App() {
 
   const handleLogin = (userId: string) => {
     setActiveUserId(userId);
-    setCurrentPage('account');
+    setCurrentPage('account'); // Redirect to account after login
   };
 
   const handleLogout = () => {
     setActiveUserId(null);
-    setCurrentPage('catalog');
+    setCurrentPage('catalog'); // Redirect to home after logout
   };
 
   // State-based router
   const renderPage = () => {
     switch (currentPage) {
       case 'catalog':
-        return <Catalog />;
+        return (
+          <Catalog 
+            activeUserId={activeUserId} 
+            onRequireLogin={() => setCurrentPage('login')} 
+          />
+        );
       case 'login':
         return <Login onLogin={handleLogin} />;
       case 'signup':
-        return <Signup onSignup={handleLogin} onNavigateLogin={() => setCurrentPage('login')} />;
+        return (
+          <Signup 
+            onSignup={handleLogin} 
+            onNavigateLogin={() => setCurrentPage('login')} 
+          />
+        );
       case 'account':
-        return activeUserId ? <Account userId={activeUserId} /> : <Login onLogin={handleLogin} />;
+        return activeUserId ? (
+          <Account userId={activeUserId} />
+        ) : (
+          <Login onLogin={handleLogin} />
+        );
       default:
-        return <Catalog />;
+        return (
+          <Catalog 
+            activeUserId={activeUserId} 
+            onRequireLogin={() => setCurrentPage('login')} 
+          />
+        );
     }
   };
 
@@ -57,7 +76,6 @@ function App() {
       </footer>
     </div>
   );
-
 }
 
 export default App;

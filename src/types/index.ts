@@ -36,3 +36,8 @@ export interface BorrowedItem {
   dueDate: string;
   renewals: number;
 }
+
+export interface ReadingListItem extends LibraryItem {
+  listId: string;
+  addedAt: string;
+}

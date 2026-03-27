@@ -1,4 +1,4 @@
-import { BorrowedItem, LibraryItem, SearchFilters, User } from '../types';
+import { BorrowedItem, LibraryItem, ReadingListItem, SearchFilters, User } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
 
@@ -73,4 +73,33 @@ export async function loginUser(credentials: any): Promise<User> {
     body: JSON.stringify(credentials),
   });
   return handleResponse<User>(response);
+}
+
+export async function borrowLibraryItem(itemId: string, userId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/library-items/${itemId}/borrow`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId })
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+export async function addReadingList(userId: string, itemId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}/reading-list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId })
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+export async function removeReadingList(userId: string, itemId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}/reading-list/${itemId}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+// Ensure you import ReadingListItem from '../types' at the top of the file!
+export async function fetchReadingList(userId: string): Promise<ReadingListItem[]> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}/reading-list`);
+  return handleResponse<ReadingListItem[]>(response);
 }
