@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { BorrowedItem, User, ReadingListItem } from '../types';
-import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User as UserIcon, Bookmark, Trash2 } from 'lucide-react';
-import { fetchBorrowedItems, fetchUser, renewBorrowedItem, fetchReadingList, removeReadingList } from '../lib/api';
+import { BorrowedItem, User, ReadingListItem, HoldItem } from '../types';
+import { Book, Clock, AlertCircle, RefreshCw, CheckCircle2, User as UserIcon, Bookmark, Trash2, Package } from 'lucide-react';
+import { fetchBorrowedItems, fetchUser, renewBorrowedItem, fetchReadingList, removeReadingList, fetchUserHolds } from '../lib/api';
+import AdminDashboard from './AdminDashboard';
 
 interface AccountProps {
   userId: string;
@@ -16,18 +17,20 @@ const Account: React.FC<AccountProps> = ({ userId }) => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [renewingId, setRenewingId] = useState<string | null>(null);
+  const [holds, setHolds] = useState<HoldItem[]>([]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError(null);
 
-    Promise.all([fetchUser(userId), fetchBorrowedItems(userId), fetchReadingList(userId)])
-      .then(([userData, borrowedData, listData]) => {
+    Promise.all([fetchUser(userId), fetchBorrowedItems(userId), fetchReadingList(userId), fetchUserHolds(userId)])
+      .then(([userData, borrowedData, listData, holdsData]) => {
         if (!active) return;
         setUser(userData);
         setBorrowedItems(borrowedData);
         setReadingList(listData);
+        setHolds(holdsData);
       })
       .catch((err) => {
         if (!active) return;
@@ -98,6 +101,10 @@ const Account: React.FC<AccountProps> = ({ userId }) => {
         </div>
       </div>
     );
+  }
+
+  if (user?.role === 'admin' || user?.email === 'admin@publiclibrary.com') {
+    return <AdminDashboard user={user} />;
   }
 
   return (
@@ -232,6 +239,35 @@ const Account: React.FC<AccountProps> = ({ userId }) => {
             )}
           </div>
         </div>
+
+        {/* On Hold Section */}
+        {holds.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-yellow-200 p-8 mt-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3 border-b pb-4">
+              <Package className="h-7 w-7 text-yellow-600" />
+              On Hold For You ({holds.length})
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {holds.map((hold) => (
+                <div key={hold.id} className="flex gap-4 p-4 border border-yellow-100 bg-yellow-50/30 rounded-xl">
+                  {hold.item.coverImage ? (
+                    <img src={hold.item.coverImage} alt={hold.item.title} className="w-16 h-24 object-cover rounded shadow" />
+                  ) : (
+                    <div className="w-16 h-24 bg-gray-100 rounded flex items-center justify-center"><Book className="text-gray-300"/></div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="font-bold text-gray-900 line-clamp-1">{hold.item.title}</h3>
+                    <p className="text-sm text-gray-600 mb-2">by {hold.item.author}</p>
+                    <span className="inline-flex items-center gap-1 text-yellow-800 text-xs font-bold bg-yellow-200 px-2 py-1 rounded">
+                      Reserved on: {new Date(hold.holdDate).toLocaleDateString()}
+                    </span>
+                    <p className="text-xs text-gray-500 mt-2">Pick up at the main desk.</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Reading List Section */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mt-8">

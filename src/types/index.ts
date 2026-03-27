@@ -25,6 +25,7 @@ export interface LibraryItem {
   id: string;
   name: string;
   email: string;
+  role?: string;
   memberSince: string;
   avatar?: string;
 }
@@ -40,4 +41,38 @@ export interface BorrowedItem {
 export interface ReadingListItem extends LibraryItem {
   listId: string;
   addedAt: string;
+}
+
+export interface AdminBorrowedItem {
+  id: string;
+  userId: string;
+  borrowDate: string;
+  dueDate: string;
+  renewals: number;
+  user: {
+    name: string;
+    email: string;
+  };
+  item: {
+    id: string;
+    title: string;
+    author: string;
+    coverImage?: string;
+  };
+}
+
+export interface HoldItem {
+  id: string;
+  holdDate: string;
+  item: {
+    id: string;
+    title: string;
+    author: string;
+    coverImage?: string;
+    status: string;
+  };
+}
+
+export interface AdminHoldItem extends HoldItem {
+  user: { name: string; email: string; };
 }

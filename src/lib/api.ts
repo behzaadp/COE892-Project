@@ -1,4 +1,4 @@
-import { BorrowedItem, LibraryItem, ReadingListItem, SearchFilters, User } from '../types';
+import { BorrowedItem, LibraryItem, ReadingListItem, SearchFilters, User, AdminBorrowedItem, AdminHoldItem, HoldItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
 
@@ -98,8 +98,44 @@ export async function removeReadingList(userId: string, itemId: string): Promise
   if (!response.ok) throw new Error(await response.text());
 }
 
-// Ensure you import ReadingListItem from '../types' at the top of the file!
 export async function fetchReadingList(userId: string): Promise<ReadingListItem[]> {
   const response = await fetch(`${API_BASE_URL}/users/${userId}/reading-list`);
   return handleResponse<ReadingListItem[]>(response);
+}
+
+export async function fetchAllBorrowedItems(): Promise<AdminBorrowedItem[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/borrowed-items`);
+  return handleResponse<AdminBorrowedItem[]>(response);
+}
+
+export async function returnBorrowedItem(borrowedId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/admin/return/${borrowedId}`, { method: 'POST' });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+export async function placeAdminHold(itemId: string, userEmail: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/admin/holds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId, userEmail })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to place hold');
+  }
+}
+
+export async function removeAdminHold(holdId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/admin/holds/${holdId}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+export async function fetchUserHolds(userId: string): Promise<HoldItem[]> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}/holds`);
+  return handleResponse<HoldItem[]>(response);
+}
+
+export async function fetchAllHolds(): Promise<AdminHoldItem[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/holds`);
+  return handleResponse<AdminHoldItem[]>(response);
 }

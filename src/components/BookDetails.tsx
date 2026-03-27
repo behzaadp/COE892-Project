@@ -1,8 +1,7 @@
-// src/components/BookDetails.tsx
-import React, { useState } from 'react';
-import { LibraryItem } from '../types';
-import { X, Book, MapPin, Calendar, User, Tag, Clock } from 'lucide-react';
-import { borrowLibraryItem, addReadingList } from '../lib/api';
+import React, { useState, useEffect } from 'react';
+import { LibraryItem, User } from '../types';
+import { X, Book, MapPin, Calendar, User as UserIcon, Tag, Clock } from 'lucide-react';
+import { borrowLibraryItem, addReadingList, placeAdminHold, fetchUser } from '../lib/api';
 
 interface BookDetailsProps {
   item: LibraryItem | null;
@@ -14,8 +13,19 @@ interface BookDetailsProps {
 
 const BookDetails: React.FC<BookDetailsProps> = ({ item, activeUserId, onRequireLogin, onSuccess, onClose }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (activeUserId) {
+      fetchUser(activeUserId).then(setCurrentUser).catch(console.error);
+    } else {
+      setCurrentUser(null);
+    }
+  }, [activeUserId]);
 
   if (!item) return null;
+
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.email === 'admin@publiclibrary.com';
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -49,6 +59,19 @@ const BookDetails: React.FC<BookDetailsProps> = ({ item, activeUserId, onRequire
     } finally { setIsProcessing(false); }
   };
 
+  const handleAdminHold = async () => {
+    const email = prompt("Enter the exact email of the user to place this hold for:");
+    if (!email) return;
+    try {
+      setIsProcessing(true);
+      await placeAdminHold(item.id, email);
+      alert(`Success! Item marked as On Hold for ${email}`);
+      onSuccess(); // Refresh catalog
+    } catch (e: any) {
+      alert(e.message || 'Failed to place hold');
+    } finally { setIsProcessing(false); }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -77,7 +100,8 @@ const BookDetails: React.FC<BookDetailsProps> = ({ item, activeUserId, onRequire
             <div className="flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="flex items-center gap-3 text-gray-700">
-                  <User className="h-5 w-5 text-library-primary" />
+                  {/* We now use UserIcon instead of User to prevent type conflicts */}
+                  <UserIcon className="h-5 w-5 text-library-primary" />
                   <div>
                     <div className="text-sm text-gray-500">Author</div>
                     <div className="font-medium">{item.author}</div>
@@ -150,7 +174,7 @@ const BookDetails: React.FC<BookDetailsProps> = ({ item, activeUserId, onRequire
             <p className="text-gray-700 leading-relaxed">{item.description}</p>
           </div>
           
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             {item.status === 'available' && (
               <button 
                 onClick={handleBorrow}
@@ -160,6 +184,17 @@ const BookDetails: React.FC<BookDetailsProps> = ({ item, activeUserId, onRequire
                 {isProcessing ? 'Processing...' : 'Reserve This Item'}
               </button>
             )}
+
+            {isAdmin && item.status === 'available' && (
+              <button 
+                onClick={handleAdminHold}
+                disabled={isProcessing}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50"
+              >
+                {isProcessing ? 'Processing...' : 'Mark For Hold'}
+              </button>
+            )}
+
             <button 
               onClick={handleAddReadingList}
               disabled={isProcessing}

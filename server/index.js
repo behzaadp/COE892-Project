@@ -11,7 +11,10 @@ import {
   borrowItem,
   addToReadingList,
   getReadingListByUser,
-  removeFromReadingList
+  removeFromReadingList,
+  getAllBorrowedItems, 
+  returnItem,
+  placeHold, removeHold, getHoldsByUser, getAllHolds
 } from './services/libraryService.js';
 import { startGrpcServer } from './grpcServer.js';
 import { initializeMessaging, publishHoldRequest, publishNotificationEvent } from './messaging/rabbitmq.js';
@@ -192,7 +195,7 @@ app.post(`${API_PREFIX}/users/login`, (req, res) => {
 
     // Check credentials against the database
     const user = db.prepare(`
-      SELECT id, name, email, memberSince, avatar 
+      SELECT id, name, email, role, memberSince, avatar 
       FROM users 
       WHERE email = ? AND password = ?
     `).get(email, password);
@@ -237,6 +240,43 @@ app.delete(`${API_PREFIX}/users/:userId/reading-list/:itemId`, (req, res) => {
     removeFromReadingList(req.params.userId, req.params.itemId);
     res.json({ message: 'Removed from reading list' });
   } catch (error) { res.status(500).json({ message: 'Failed to remove from reading list' }); }
+});
+
+app.get(`${API_PREFIX}/admin/borrowed-items`, (req, res) => {
+  try { res.json(getAllBorrowedItems()); } 
+  catch (error) { res.status(500).json({ message: 'Failed to fetch all borrowed items' }); }
+});
+
+app.post(`${API_PREFIX}/admin/return/:borrowedId`, (req, res) => {
+  try {
+    returnItem(req.params.borrowedId);
+    res.json({ message: 'Item returned successfully' });
+  } catch (error) { res.status(500).json({ message: error.message || 'Failed to return item' }); }
+});
+
+app.post(`${API_PREFIX}/admin/holds`, (req, res) => {
+  try {
+    const { itemId, userEmail } = req.body;
+    placeHold(itemId, userEmail);
+    res.json({ message: 'Hold placed successfully' });
+  } catch (error) { res.status(400).json({ message: error.message }); }
+});
+
+app.delete(`${API_PREFIX}/admin/holds/:id`, (req, res) => {
+  try {
+    removeHold(req.params.id);
+    res.json({ message: 'Hold removed' });
+  } catch (error) { res.status(500).json({ message: 'Failed to remove hold' }); }
+});
+
+app.get(`${API_PREFIX}/users/:id/holds`, (req, res) => {
+  try { res.json(getHoldsByUser(req.params.id)); }
+  catch (error) { res.status(500).json({ message: 'Failed to fetch user holds' }); }
+});
+
+app.get(`${API_PREFIX}/admin/holds`, (req, res) => {
+  try { res.json(getAllHolds()); }
+  catch (error) { res.status(500).json({ message: 'Failed to fetch all holds' }); }
 });
 
 initializeMessaging().catch((error) => {

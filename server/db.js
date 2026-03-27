@@ -19,6 +19,7 @@ export function initializeDatabase() {
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
       memberSince TEXT NOT NULL,
       avatar TEXT
     );
@@ -67,18 +68,48 @@ export function initializeDatabase() {
     );
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS holds (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      itemId TEXT NOT NULL,
+      holdDate TEXT NOT NULL,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (itemId) REFERENCES library_items(id) ON DELETE CASCADE
+    );
+  `);
+
   seedTables();
 }
 
 function seedTables() {
-  const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
-  if (userCount === 0) {
+  // 1. Ensure Admin exists
+  const adminCheck = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@publiclibrary.com');
+  if (!adminCheck) {
     db.prepare(`
-      INSERT INTO users (id, name, email, password, memberSince, avatar)
-      VALUES (@id, @name, @email, @password, @memberSince, @avatar)
-    `).run({ ...seedUser, password: 'password123' }); // Default password for seed
+      INSERT INTO users (id, name, email, password, role, memberSince, avatar)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'admin-1', 
+      'Library Admin', 
+      'admin@publiclibrary.com', 
+      'adminpass@01', 
+      'admin', 
+      new Date().toISOString().split('T')[0], 
+      'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff'
+    );
   }
 
+  // 2. Ensure Sample User exists
+  const userCheck = db.prepare('SELECT id FROM users WHERE id = ?').get('u1');
+  if (!userCheck) {
+    db.prepare(`
+      INSERT INTO users (id, name, email, password, role, memberSince, avatar)
+      VALUES (@id, @name, @email, @password, @role, @memberSince, @avatar)
+    `).run({ ...seedUser, password: 'password123', role: 'user' });
+  }
+
+  // 3. Seed Library Items
   const itemCount = db.prepare('SELECT COUNT(*) AS count FROM library_items').get().count;
   if (itemCount === 0) {
     const insertItem = db.prepare(`
@@ -98,6 +129,7 @@ function seedTables() {
     insertMany(seedLibraryItems);
   }
 
+  // 4. Seed Borrowed Items
   const borrowedCount = db.prepare('SELECT COUNT(*) AS count FROM borrowed_items').get().count;
   if (borrowedCount === 0) {
     const insertBorrowed = db.prepare(`

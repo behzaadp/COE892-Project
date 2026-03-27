@@ -151,6 +151,7 @@ export const seedUser = {
   id: 'u1',
   name: 'John Doe',
   email: 'john.doe@torontolibrary.ca',
+  password: 'password123',
   memberSince: '2023-01-15',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
 };

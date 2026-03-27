@@ -212,3 +212,97 @@ export function removeFromReadingList(userId, itemId) {
   db.prepare('DELETE FROM reading_list WHERE userId = ? AND itemId = ?').run(userId, itemId);
   return { success: true };
 }
+
+export function getAllBorrowedItems() {
+  const rows = db.prepare(`
+    SELECT bi.*, 
+           u.name as userName, u.email as userEmail,
+           li.title, li.author, li.coverImage
+    FROM borrowed_items bi
+    JOIN users u ON u.id = bi.userId
+    JOIN library_items li ON li.id = bi.itemId
+    ORDER BY bi.borrowDate ASC
+  `).all();
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.userId,
+    borrowDate: row.borrowDate,
+    dueDate: row.dueDate,
+    renewals: row.renewals,
+    user: { name: row.userName, email: row.userEmail },
+    item: { id: row.itemId, title: row.title, author: row.author, coverImage: row.coverImage }
+  }));
+}
+
+export function returnItem(borrowedId) {
+  const borrowed = db.prepare('SELECT * FROM borrowed_items WHERE id = ?').get(borrowedId);
+  if (!borrowed) throw new Error('Borrowed item not found');
+
+  db.transaction(() => {
+    // Make book available again
+    db.prepare("UPDATE library_items SET status = 'available' WHERE id = ?").run(borrowed.itemId);
+    // Remove from borrowed list
+    db.prepare("DELETE FROM borrowed_items WHERE id = ?").run(borrowedId);
+  })();
+
+  return { success: true };
+}
+
+export function placeHold(itemId, userEmail) {
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(userEmail);
+  if (!user) throw new Error('User not found with that email.');
+
+  const item = db.prepare('SELECT status FROM library_items WHERE id = ?').get(itemId);
+  if (!item || item.status !== 'available') throw new Error('Item is not available to hold.');
+
+  const holdId = randomUUID();
+  db.transaction(() => {
+    db.prepare("UPDATE library_items SET status = 'on-hold' WHERE id = ?").run(itemId);
+    db.prepare("INSERT INTO holds (id, userId, itemId, holdDate) VALUES (?, ?, ?, ?)").run(holdId, user.id, itemId, new Date().toISOString());
+  })();
+
+  return { success: true };
+}
+
+export function removeHold(holdId) {
+  const hold = db.prepare('SELECT itemId FROM holds WHERE id = ?').get(holdId);
+  if (!hold) throw new Error('Hold record not found');
+
+  db.transaction(() => {
+    db.prepare("UPDATE library_items SET status = 'available' WHERE id = ?").run(hold.itemId);
+    db.prepare("DELETE FROM holds WHERE id = ?").run(holdId);
+  })();
+  return { success: true };
+}
+
+export function getHoldsByUser(userId) {
+  const rows = db.prepare(`
+    SELECT h.id as holdId, h.holdDate, li.id, li.title, li.author, li.coverImage, li.status
+    FROM holds h
+    JOIN library_items li ON li.id = h.itemId
+    WHERE h.userId = ?
+    ORDER BY h.holdDate DESC
+  `).all(userId);
+
+  return rows.map(row => ({
+    id: row.holdId, holdDate: row.holdDate,
+    item: { id: row.id, title: row.title, author: row.author, coverImage: row.coverImage, status: row.status }
+  }));
+}
+
+export function getAllHolds() {
+  const rows = db.prepare(`
+    SELECT h.id as holdId, h.holdDate, u.name as userName, u.email as userEmail, li.id, li.title, li.author, li.coverImage
+    FROM holds h
+    JOIN users u ON u.id = h.userId
+    JOIN library_items li ON li.id = h.itemId
+    ORDER BY h.holdDate DESC
+  `).all();
+
+  return rows.map(row => ({
+    id: row.holdId, holdDate: row.holdDate,
+    user: { name: row.userName, email: row.userEmail },
+    item: { id: row.id, title: row.title, author: row.author, coverImage: row.coverImage }
+  }));
+}
