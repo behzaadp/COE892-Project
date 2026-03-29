@@ -12,7 +12,7 @@ import {
   addToReadingList,
   getReadingListByUser,
   removeFromReadingList,
-  getAllBorrowedItems, 
+  getAllBorrowedItems,
   returnItem,
   placeHold, removeHold, getHoldsByUser, getAllHolds
 } from './services/libraryService.js';
@@ -20,6 +20,8 @@ import { startGrpcServer } from './grpcServer.js';
 import { initializeMessaging, publishHoldRequest, publishNotificationEvent } from './messaging/rabbitmq.js';
 import { randomUUID } from 'node:crypto';
 import { db } from './db.js';
+import { startNotificationConsumer } from './messaging/notificationConsumer.js';
+import { startScheduler } from './scheduler.js';
 
 initializeDatabase();
 
@@ -158,7 +160,7 @@ app.post(`${API_PREFIX}/library-items/:id/hold`, async (req, res) => {
 app.post(`${API_PREFIX}/users/signup`, (req, res) => {
   try {
     const { name, email, password } = req.body;
-    
+
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
@@ -188,7 +190,7 @@ app.post(`${API_PREFIX}/users/signup`, (req, res) => {
 app.post(`${API_PREFIX}/users/login`, (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
@@ -223,7 +225,7 @@ app.post(`${API_PREFIX}/library-items/:id/borrow`, (req, res) => {
 });
 
 app.get(`${API_PREFIX}/users/:id/reading-list`, (req, res) => {
-  try { res.json(getReadingListByUser(req.params.id)); } 
+  try { res.json(getReadingListByUser(req.params.id)); }
   catch (error) { res.status(500).json({ message: 'Failed to fetch reading list' }); }
 });
 
@@ -243,7 +245,7 @@ app.delete(`${API_PREFIX}/users/:userId/reading-list/:itemId`, (req, res) => {
 });
 
 app.get(`${API_PREFIX}/admin/borrowed-items`, (req, res) => {
-  try { res.json(getAllBorrowedItems()); } 
+  try { res.json(getAllBorrowedItems()); }
   catch (error) { res.status(500).json({ message: 'Failed to fetch all borrowed items' }); }
 });
 
@@ -279,11 +281,63 @@ app.get(`${API_PREFIX}/admin/holds`, (req, res) => {
   catch (error) { res.status(500).json({ message: 'Failed to fetch all holds' }); }
 });
 
-initializeMessaging().catch((error) => {
+// --- Notification Routes ---
+
+app.get(`${API_PREFIX}/notifications/:userId`, (req, res) => {
+  try {
+    const notifications = db.prepare(`
+      SELECT * FROM notifications
+      WHERE userId = ?
+      ORDER BY createdAt DESC
+      LIMIT 50
+    `).all(req.params.userId);
+    // Convert SQLite integer 0/1 back to boolean
+    res.json(notifications.map(n => ({ ...n, read: n.read === 1 })));
+  } catch (error) {
+    console.error('Failed to fetch notifications', error);
+    res.status(500).json({ message: 'Failed to fetch notifications' });
+  }
+});
+
+app.patch(`${API_PREFIX}/notifications/:id/read`, (req, res) => {
+  try {
+    db.prepare('UPDATE notifications SET read = 1 WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to mark notification as read' });
+  }
+});
+
+app.patch(`${API_PREFIX}/notifications/user/:userId/read-all`, (req, res) => {
+  try {
+    db.prepare('UPDATE notifications SET read = 1 WHERE userId = ?').run(req.params.userId);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to mark all notifications as read' });
+  }
+});
+
+app.delete(`${API_PREFIX}/notifications/:id`, (req, res) => {
+  try {
+    db.prepare('DELETE FROM notifications WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete notification' });
+  }
+});
+
+initializeMessaging().then((channel) => {
+  if (channel) {
+    const notificationsQueue = process.env.RABBITMQ_NOTIFICATIONS_QUEUE || 'library.notifications';
+    const holdsQueue = process.env.RABBITMQ_HOLDS_QUEUE || 'library.holds';
+    startNotificationConsumer(channel, notificationsQueue, holdsQueue);
+  }
+}).catch((error) => {
   console.error('Failed to initialize RabbitMQ', error);
 });
 
 startGrpcServer();
+startScheduler();
 
 app.listen(PORT, () => {
   console.log(`Library API running on http://localhost:${PORT}${API_PREFIX}`);

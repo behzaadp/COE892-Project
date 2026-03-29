@@ -79,6 +79,21 @@ export function initializeDatabase() {
     );
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      read INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+
+
   seedTables();
 }
 
@@ -90,12 +105,12 @@ function seedTables() {
       INSERT INTO users (id, name, email, password, role, memberSince, avatar)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
-      'admin-1', 
-      'Library Admin', 
-      'admin@publiclibrary.com', 
-      'adminpass@01', 
-      'admin', 
-      new Date().toISOString().split('T')[0], 
+      'admin-1',
+      'Library Admin',
+      'admin@publiclibrary.com',
+      'adminpass@01',
+      'admin',
+      new Date().toISOString().split('T')[0],
       'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff'
     );
   }

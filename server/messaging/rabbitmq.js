@@ -23,7 +23,7 @@ async function ensureChannel() {
       channel = undefined;
       initializing = undefined;
       console.warn('RabbitMQ connection closed. Reconnecting...');
-      setTimeout(() => ensureChannel().catch(() => {}), 5000);
+      setTimeout(() => ensureChannel().catch(() => { }), 5000);
     });
     connection.on('error', (error) => {
       console.error('RabbitMQ connection error', error);
@@ -61,7 +61,7 @@ async function publish(routingKey, payload) {
 }
 
 export async function initializeMessaging() {
-  await ensureChannel();
+  return await ensureChannel();
 }
 
 export async function publishNotificationEvent(payload) {
@@ -73,8 +73,8 @@ export async function publishHoldRequest(payload) {
 }
 
 export async function shutdownMessaging() {
-  await channel?.close().catch(() => {});
-  await connection?.close().catch(() => {});
+  await channel?.close().catch(() => { });
+  await connection?.close().catch(() => { });
   channel = undefined;
   connection = undefined;
   initializing = undefined;
