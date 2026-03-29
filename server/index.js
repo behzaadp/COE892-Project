@@ -14,16 +14,17 @@ import {
   removeFromReadingList,
   getAllBorrowedItems,
   returnItem,
-  placeHold, removeHold, getHoldsByUser, getAllHolds
+  placeHold,
+  removeHold,
+  getHoldsByUser,
+  getAllHolds
 } from './services/libraryService.js';
 import { startGrpcServer } from './grpcServer.js';
 import { initializeMessaging, publishHoldRequest, publishNotificationEvent } from './messaging/rabbitmq.js';
 import { randomUUID } from 'node:crypto';
-import { db } from './db.js';
 import { startNotificationConsumer } from './messaging/notificationConsumer.js';
 import { startScheduler } from './scheduler.js';
-
-initializeDatabase();
+import { Notification, User } from './models/index.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -46,13 +47,13 @@ app.get(`${API_PREFIX}/health`, (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get(`${API_PREFIX}/library-items`, (req, res) => {
+app.get(`${API_PREFIX}/library-items`, async (req, res) => {
   try {
     const searchTerm = normalizeQueryValue(req.query.searchTerm ?? '');
     const genre = normalizeQueryValue(req.query.genre ?? '');
     const format = normalizeQueryValue(req.query.format ?? '');
     const availability = normalizeQueryValue(req.query.availability ?? '');
-    const items = listLibraryItems({ searchTerm, genre, format, availability });
+    const items = await listLibraryItems({ searchTerm, genre, format, availability });
     res.json(items);
   } catch (error) {
     console.error('Failed to fetch library items', error);
@@ -60,9 +61,9 @@ app.get(`${API_PREFIX}/library-items`, (req, res) => {
   }
 });
 
-app.get(`${API_PREFIX}/library-items/:id`, (req, res) => {
+app.get(`${API_PREFIX}/library-items/:id`, async (req, res) => {
   try {
-    const item = getLibraryItemById(req.params.id);
+    const item = await getLibraryItemById(req.params.id);
     if (!item) {
       return res.status(404).json({ message: 'Item not found' });
     }
@@ -73,18 +74,18 @@ app.get(`${API_PREFIX}/library-items/:id`, (req, res) => {
   }
 });
 
-app.get(`${API_PREFIX}/metadata`, (_req, res) => {
+app.get(`${API_PREFIX}/metadata`, async (_req, res) => {
   try {
-    res.json(getMetadata());
+    res.json(await getMetadata());
   } catch (error) {
     console.error('Failed to fetch metadata', error);
     res.status(500).json({ message: 'Failed to fetch metadata' });
   }
 });
 
-app.get(`${API_PREFIX}/users/:id`, (req, res) => {
+app.get(`${API_PREFIX}/users/:id`, async (req, res) => {
   try {
-    const user = getUserById(req.params.id);
+    const user = await getUserById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -95,9 +96,9 @@ app.get(`${API_PREFIX}/users/:id`, (req, res) => {
   }
 });
 
-app.get(`${API_PREFIX}/users/:id/borrowed-items`, (req, res) => {
+app.get(`${API_PREFIX}/users/:id/borrowed-items`, async (req, res) => {
   try {
-    const borrowedItems = getBorrowedItemsByUser(req.params.id);
+    const borrowedItems = await getBorrowedItemsByUser(req.params.id);
     res.json(borrowedItems);
   } catch (error) {
     console.error('Failed to fetch borrowed items', error);
@@ -105,9 +106,9 @@ app.get(`${API_PREFIX}/users/:id/borrowed-items`, (req, res) => {
   }
 });
 
-app.post(`${API_PREFIX}/borrowed/:id/renew`, (req, res) => {
+app.post(`${API_PREFIX}/borrowed/:id/renew`, async (req, res) => {
   try {
-    const record = renewBorrowedItem(req.params.id);
+    const record = await renewBorrowedItem(req.params.id);
     publishNotificationEvent({
       type: 'BORROWED_RENEWED',
       borrowedId: record.id,
@@ -132,11 +133,11 @@ app.post(`${API_PREFIX}/library-items/:id/hold`, async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: 'userId is required' });
     }
-    const user = getUserById(userId);
+    const user = await getUserById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    const item = getLibraryItemById(req.params.id);
+    const item = await getLibraryItemById(req.params.id);
     if (!item) {
       return res.status(404).json({ message: 'Library item not found' });
     }
@@ -157,7 +158,7 @@ app.post(`${API_PREFIX}/library-items/:id/hold`, async (req, res) => {
   }
 });
 
-app.post(`${API_PREFIX}/users/signup`, (req, res) => {
+app.post(`${API_PREFIX}/users/signup`, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -165,8 +166,7 @@ app.post(`${API_PREFIX}/users/signup`, (req, res) => {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
 
-    // Check if user already exists
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existingUser = await User.findOne({ email }).lean();
     if (existingUser) {
       return res.status(409).json({ message: 'Email is already registered' });
     }
@@ -175,19 +175,17 @@ app.post(`${API_PREFIX}/users/signup`, (req, res) => {
     const memberSince = new Date().toISOString().split('T')[0];
     const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
 
-    db.prepare(`
-      INSERT INTO users (id, name, email, password, memberSince, avatar)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, name, email, password, memberSince, avatar);
-
-    res.status(201).json({ id, name, email, memberSince, avatar });
+    const user = await User.create({ _id: id, name, email, password, memberSince, avatar, role: 'user' });
+    const plain = user.toObject();
+    delete plain.password;
+    res.status(201).json({ ...plain, id });
   } catch (error) {
     console.error('Failed to sign up user', error);
     res.status(500).json({ message: 'Failed to sign up user' });
   }
 });
 
-app.post(`${API_PREFIX}/users/login`, (req, res) => {
+app.post(`${API_PREFIX}/users/login`, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -195,150 +193,159 @@ app.post(`${API_PREFIX}/users/login`, (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Check credentials against the database
-    const user = db.prepare(`
-      SELECT id, name, email, role, memberSince, avatar 
-      FROM users 
-      WHERE email = ? AND password = ?
-    `).get(email, password);
+    const user = await User.findOne({ email, password }, 'name email role memberSince avatar').lean();
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    res.json(user);
+    const id = user._id?.toString() ?? user.id;
+    const { _id, ...rest } = user;
+    res.json({ ...rest, id });
   } catch (error) {
     console.error('Failed to log in', error);
     res.status(500).json({ message: 'Failed to log in' });
   }
 });
 
-app.post(`${API_PREFIX}/library-items/:id/borrow`, (req, res) => {
+app.post(`${API_PREFIX}/library-items/:id/borrow`, async (req, res) => {
   try {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ message: 'User ID required' });
-    borrowItem(userId, req.params.id);
+    await borrowItem(userId, req.params.id);
     res.json({ message: 'Item borrowed successfully' });
   } catch (error) {
     res.status(400).json({ message: error.message || 'Failed to borrow item' });
   }
 });
 
-app.get(`${API_PREFIX}/users/:id/reading-list`, (req, res) => {
-  try { res.json(getReadingListByUser(req.params.id)); }
+app.get(`${API_PREFIX}/users/:id/reading-list`, async (req, res) => {
+  try { res.json(await getReadingListByUser(req.params.id)); }
   catch (error) { res.status(500).json({ message: 'Failed to fetch reading list' }); }
 });
 
-app.post(`${API_PREFIX}/users/:id/reading-list`, (req, res) => {
+app.post(`${API_PREFIX}/users/:id/reading-list`, async (req, res) => {
   try {
     const { itemId } = req.body;
-    addToReadingList(req.params.id, itemId);
+    await addToReadingList(req.params.id, itemId);
     res.json({ message: 'Added to reading list' });
   } catch (error) { res.status(500).json({ message: 'Failed to add to reading list' }); }
 });
 
-app.delete(`${API_PREFIX}/users/:userId/reading-list/:itemId`, (req, res) => {
+app.delete(`${API_PREFIX}/users/:userId/reading-list/:itemId`, async (req, res) => {
   try {
-    removeFromReadingList(req.params.userId, req.params.itemId);
+    await removeFromReadingList(req.params.userId, req.params.itemId);
     res.json({ message: 'Removed from reading list' });
   } catch (error) { res.status(500).json({ message: 'Failed to remove from reading list' }); }
 });
 
-app.get(`${API_PREFIX}/admin/borrowed-items`, (req, res) => {
-  try { res.json(getAllBorrowedItems()); }
+app.get(`${API_PREFIX}/admin/borrowed-items`, async (_req, res) => {
+  try { res.json(await getAllBorrowedItems()); }
   catch (error) { res.status(500).json({ message: 'Failed to fetch all borrowed items' }); }
 });
 
-app.post(`${API_PREFIX}/admin/return/:borrowedId`, (req, res) => {
+app.post(`${API_PREFIX}/admin/return/:borrowedId`, async (req, res) => {
   try {
-    returnItem(req.params.borrowedId);
+    await returnItem(req.params.borrowedId);
     res.json({ message: 'Item returned successfully' });
   } catch (error) { res.status(500).json({ message: error.message || 'Failed to return item' }); }
 });
 
-app.post(`${API_PREFIX}/admin/holds`, (req, res) => {
+app.post(`${API_PREFIX}/admin/holds`, async (req, res) => {
   try {
     const { itemId, userEmail } = req.body;
-    placeHold(itemId, userEmail);
+    await placeHold(itemId, userEmail);
     res.json({ message: 'Hold placed successfully' });
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
-app.delete(`${API_PREFIX}/admin/holds/:id`, (req, res) => {
+app.delete(`${API_PREFIX}/admin/holds/:id`, async (req, res) => {
   try {
-    removeHold(req.params.id);
+    await removeHold(req.params.id);
     res.json({ message: 'Hold removed' });
   } catch (error) { res.status(500).json({ message: 'Failed to remove hold' }); }
 });
 
-app.get(`${API_PREFIX}/users/:id/holds`, (req, res) => {
-  try { res.json(getHoldsByUser(req.params.id)); }
+app.get(`${API_PREFIX}/users/:id/holds`, async (req, res) => {
+  try { res.json(await getHoldsByUser(req.params.id)); }
   catch (error) { res.status(500).json({ message: 'Failed to fetch user holds' }); }
 });
 
-app.get(`${API_PREFIX}/admin/holds`, (req, res) => {
-  try { res.json(getAllHolds()); }
+app.get(`${API_PREFIX}/admin/holds`, async (_req, res) => {
+  try { res.json(await getAllHolds()); }
   catch (error) { res.status(500).json({ message: 'Failed to fetch all holds' }); }
 });
 
-// --- Notification Routes ---
-
-app.get(`${API_PREFIX}/notifications/:userId`, (req, res) => {
+app.get(`${API_PREFIX}/notifications/:userId`, async (req, res) => {
   try {
-    const notifications = db.prepare(`
-      SELECT * FROM notifications
-      WHERE userId = ?
-      ORDER BY createdAt DESC
-      LIMIT 50
-    `).all(req.params.userId);
-    // Convert SQLite integer 0/1 back to boolean
-    res.json(notifications.map(n => ({ ...n, read: n.read === 1 })));
+    const notifications = await Notification.find({ userId: req.params.userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    res.json(notifications.map((n) => ({
+      id: n._id?.toString() ?? n.id,
+      userId: n.userId,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      read: Boolean(n.read),
+      createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : n.createdAt
+    })));
   } catch (error) {
     console.error('Failed to fetch notifications', error);
     res.status(500).json({ message: 'Failed to fetch notifications' });
   }
 });
 
-app.patch(`${API_PREFIX}/notifications/:id/read`, (req, res) => {
+app.patch(`${API_PREFIX}/notifications/:id/read`, async (req, res) => {
   try {
-    db.prepare('UPDATE notifications SET read = 1 WHERE id = ?').run(req.params.id);
+    await Notification.updateOne({ _id: req.params.id }, { read: true }).exec();
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Failed to mark notification as read' });
   }
 });
 
-app.patch(`${API_PREFIX}/notifications/user/:userId/read-all`, (req, res) => {
+app.patch(`${API_PREFIX}/notifications/user/:userId/read-all`, async (req, res) => {
   try {
-    db.prepare('UPDATE notifications SET read = 1 WHERE userId = ?').run(req.params.userId);
+    await Notification.updateMany({ userId: req.params.userId }, { read: true }).exec();
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Failed to mark all notifications as read' });
   }
 });
 
-app.delete(`${API_PREFIX}/notifications/:id`, (req, res) => {
+app.delete(`${API_PREFIX}/notifications/:id`, async (req, res) => {
   try {
-    db.prepare('DELETE FROM notifications WHERE id = ?').run(req.params.id);
+    await Notification.deleteOne({ _id: req.params.id }).exec();
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete notification' });
   }
 });
 
-initializeMessaging().then((channel) => {
-  if (channel) {
-    const notificationsQueue = process.env.RABBITMQ_NOTIFICATIONS_QUEUE || 'library.notifications';
-    const holdsQueue = process.env.RABBITMQ_HOLDS_QUEUE || 'library.holds';
-    startNotificationConsumer(channel, notificationsQueue, holdsQueue);
-  }
-}).catch((error) => {
-  console.error('Failed to initialize RabbitMQ', error);
-});
+async function bootstrap() {
+  await initializeDatabase();
 
-startGrpcServer();
-startScheduler();
+  initializeMessaging().then((channel) => {
+    if (channel) {
+      const notificationsQueue = process.env.RABBITMQ_NOTIFICATIONS_QUEUE || 'library.notifications';
+      const holdsQueue = process.env.RABBITMQ_HOLDS_QUEUE || 'library.holds';
+      startNotificationConsumer(channel, notificationsQueue, holdsQueue);
+    }
+  }).catch((error) => {
+    console.error('Failed to initialize RabbitMQ', error);
+  });
 
-app.listen(PORT, () => {
-  console.log(`Library API running on http://localhost:${PORT}${API_PREFIX}`);
+  startGrpcServer();
+  startScheduler();
+
+  app.listen(PORT, () => {
+    console.log(`Library API running on http://localhost:${PORT}${API_PREFIX}`);
+  });
+}
+
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap application', error);
+  process.exit(1);
 });

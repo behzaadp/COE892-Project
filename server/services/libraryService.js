@@ -1,106 +1,111 @@
-import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
+import { BorrowedItem, Hold, LibraryItem, ReadingList, User } from '../models/index.js';
 
-function buildFilters({ searchTerm = '', genre = '', format = '', availability = '' }) {
-  const conditions = [];
-  const params = {};
-
+function buildQuery({ searchTerm = '', genre = '', format = '', availability = '' }) {
+  const query = {};
   if (searchTerm) {
-    conditions.push('(LOWER(title) LIKE @search OR LOWER(author) LIKE @search OR LOWER(genre) LIKE @search)');
-    params.search = `%${String(searchTerm).toLowerCase()}%`;
+    const regex = new RegExp(searchTerm, 'i');
+    query.$or = [{ title: regex }, { author: regex }, { genre: regex }];
   }
-
   if (genre) {
-    conditions.push('genre = @genre');
-    params.genre = genre;
+    query.genre = genre;
   }
-
   if (format) {
-    conditions.push('format = @format');
-    params.format = format;
+    query.format = format;
   }
-
   if (availability) {
-    conditions.push('status = @status');
-    params.status = availability;
+    query.status = availability;
   }
-
-  return { conditions, params };
+  return query;
 }
 
-export function listLibraryItems(filters = {}) {
-  const { conditions, params } = buildFilters(filters);
-  let query = 'SELECT * FROM library_items';
-  if (conditions.length > 0) {
-    query += ` WHERE ${conditions.join(' AND ')}`;
+function docToPlain(doc) {
+  if (!doc) return null;
+  if (typeof doc.toObject === 'function') {
+    const obj = doc.toObject({ virtuals: true });
+    if (obj._id && !obj.id) {
+      obj.id = obj._id;
+    }
+    delete obj._id;
+    delete obj.__v;
+    return obj;
   }
-  query += ' ORDER BY title ASC';
-  return db.prepare(query).all(params);
+  if (doc._id && !doc.id) {
+    const { _id, __v, ...rest } = doc;
+    return { ...rest, id: doc._id };
+  }
+  return doc;
 }
 
-export function getLibraryItemById(id) {
-  return db.prepare('SELECT * FROM library_items WHERE id = ?').get(id);
+function mapLibraryItem(doc) {
+  if (typeof doc === 'string') {
+    return { id: doc };
+  }
+  const plain = docToPlain(doc);
+  if (!plain) return null;
+  return plain;
 }
 
-export function getMetadata() {
-  const genres = db.prepare('SELECT DISTINCT genre FROM library_items ORDER BY genre ASC').all().map(row => row.genre);
-  const formats = db.prepare('SELECT DISTINCT format FROM library_items ORDER BY format ASC').all().map(row => row.format);
-  const availabilityOptions = db.prepare('SELECT DISTINCT status FROM library_items ORDER BY status ASC').all().map(row => row.status);
-
+function mapBorrowedRecord(doc) {
+  const plain = docToPlain(doc);
+  if (!plain) return null;
   return {
-    genres: ['All Genres', ...genres],
-    formats: ['All Formats', ...formats],
-    availabilityOptions: ['All Status', ...availabilityOptions]
+    id: plain.id,
+    userId: plain.userId,
+    borrowDate: plain.borrowDate,
+    dueDate: plain.dueDate,
+    renewals: plain.renewals,
+    item: mapLibraryItem(doc?.item || doc?.itemId || plain.item)
   };
 }
 
-export function getUserById(id) {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+export async function listLibraryItems(filters = {}) {
+  const query = buildQuery(filters);
+  const items = await LibraryItem.find(query).sort({ title: 1 }).exec();
+  return items.map(mapLibraryItem);
 }
 
-export function getBorrowedItemsByUser(userId) {
-  const rows = db.prepare(`
-      SELECT bi.*, li.title, li.author, li.genre, li.format, li.status, li.description, li.publishedDate, li.location, li.isbn,
-             li.coverImage, li.pages, li.language
-      FROM borrowed_items bi
-      JOIN library_items li ON li.id = bi.itemId
-      WHERE bi.userId = @userId
-      ORDER BY bi.dueDate ASC
-    `).all({ userId });
-
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.userId,
-    borrowDate: row.borrowDate,
-    dueDate: row.dueDate,
-    renewals: row.renewals,
-    item: {
-      id: row.itemId,
-      title: row.title,
-      author: row.author,
-      genre: row.genre,
-      format: row.format,
-      status: row.status,
-      description: row.description,
-      publishedDate: row.publishedDate,
-      location: row.location,
-      isbn: row.isbn,
-      coverImage: row.coverImage,
-      pages: row.pages,
-      language: row.language
-    }
-  }));
+export async function getLibraryItemById(id) {
+  const item = await LibraryItem.findById(id).exec();
+  return mapLibraryItem(item);
 }
 
-export function renewBorrowedItem(borrowedId) {
-  const borrowed = db.prepare('SELECT * FROM borrowed_items WHERE id = ?').get(borrowedId);
+export async function getMetadata() {
+  const [genres, formats, availabilityOptions] = await Promise.all([
+    LibraryItem.distinct('genre'),
+    LibraryItem.distinct('format'),
+    LibraryItem.distinct('status')
+  ]);
+
+  return {
+    genres: ['All Genres', ...genres.sort()],
+    formats: ['All Formats', ...formats.sort()],
+    availabilityOptions: ['All Status', ...availabilityOptions.sort()]
+  };
+}
+
+export async function getUserById(id) {
+  const user = await User.findById(id).exec();
+  if (!user) return null;
+  const plain = docToPlain(user);
+  delete plain.password;
+  return plain;
+}
+
+export async function getBorrowedItemsByUser(userId) {
+  const records = await BorrowedItem.find({ userId }).sort({ dueDate: 1 }).populate('item').exec();
+  return records.map(mapBorrowedRecord);
+}
+
+export async function renewBorrowedItem(borrowedId) {
+  const borrowed = await BorrowedItem.findById(borrowedId).exec();
   if (!borrowed) {
     const error = new Error('Borrowed item not found');
     error.statusCode = 404;
     throw error;
   }
 
-  const dueDate = new Date(`${borrowed.dueDate}T00:00:00`);
+  const dueDate = new Date(`${borrowed.dueDate}T00:00:00Z`);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -123,186 +128,147 @@ export function renewBorrowedItem(borrowedId) {
   }
 
   dueDate.setDate(dueDate.getDate() + 14);
-  const updatedRecord = {
-    dueDate: dueDate.toISOString().split('T')[0],
-    renewals: borrowed.renewals + 1,
-    id: borrowed.id
-  };
-
-  db.prepare('UPDATE borrowed_items SET dueDate = @dueDate, renewals = @renewals WHERE id = @id').run(updatedRecord);
-
-  const row = db.prepare(`
-      SELECT bi.*, li.title, li.author, li.genre, li.format, li.status, li.description, li.publishedDate, li.location, li.isbn,
-             li.coverImage, li.pages, li.language
-      FROM borrowed_items bi
-      JOIN library_items li ON li.id = bi.itemId
-      WHERE bi.id = @id
-    `).get({ id: borrowed.id });
-
-  return {
-    id: row.id,
-    userId: row.userId,
-    borrowDate: row.borrowDate,
-    dueDate: row.dueDate,
-    renewals: row.renewals,
-    item: {
-      id: row.itemId,
-      title: row.title,
-      author: row.author,
-      genre: row.genre,
-      format: row.format,
-      status: row.status,
-      description: row.description,
-      publishedDate: row.publishedDate,
-      location: row.location,
-      isbn: row.isbn,
-      coverImage: row.coverImage,
-      pages: row.pages,
-      language: row.language
-    }
-  };
+  borrowed.dueDate = dueDate.toISOString().split('T')[0];
+  borrowed.renewals += 1;
+  await borrowed.save();
+  await borrowed.populate('item');
+  return mapBorrowedRecord(borrowed);
 }
 
-export function borrowItem(userId, itemId) {
-  const item = db.prepare('SELECT * FROM library_items WHERE id = ?').get(itemId);
+export async function borrowItem(userId, itemId) {
+  const item = await LibraryItem.findById(itemId).exec();
   if (!item || item.status !== 'available') throw new Error('Item is not available to borrow.');
 
   const borrowDate = new Date();
   const dueDate = new Date();
-  dueDate.setDate(dueDate.getDate() + 14); // 14-day checkout limit
+  dueDate.setDate(dueDate.getDate() + 14);
 
-  const borrowId = randomUUID();
+  item.status = 'checked-out';
+  await item.save();
 
-  // Use a transaction so both the item status and borrow record update together
-  db.transaction(() => {
-    db.prepare("UPDATE library_items SET status = 'checked-out' WHERE id = ?").run(itemId);
-    db.prepare(`
-      INSERT INTO borrowed_items (id, itemId, userId, borrowDate, dueDate, renewals)
-      VALUES (?, ?, ?, ?, ?, 0)
-    `).run(borrowId, itemId, userId, borrowDate.toISOString().split('T')[0], dueDate.toISOString().split('T')[0]);
-  })();
+  const borrowed = await BorrowedItem.create({
+    itemId,
+    userId,
+    borrowDate: borrowDate.toISOString().split('T')[0],
+    dueDate: dueDate.toISOString().split('T')[0],
+    renewals: 0
+  });
 
-  return { success: true };
+  return mapBorrowedRecord(await borrowed.populate('item'));
 }
 
-export function addToReadingList(userId, itemId) {
+export async function addToReadingList(userId, itemId) {
   try {
-    db.prepare(`
-      INSERT INTO reading_list (id, userId, itemId, addedAt)
-      VALUES (?, ?, ?, ?)
-    `).run(randomUUID(), userId, itemId, new Date().toISOString());
+    await ReadingList.findOneAndUpdate(
+      { userId, itemId },
+      { $setOnInsert: { addedAt: new Date(), _id: randomUUID() } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
     return { success: true };
-  } catch(e) {
-    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') return { success: true, message: 'Already in list' };
-    throw e;
+  } catch (error) {
+    if (error.code === 11000) {
+      return { success: true, message: 'Already in list' };
+    }
+    throw error;
   }
 }
 
-export function getReadingListByUser(userId) {
-  return db.prepare(`
-    SELECT rl.id as listId, rl.addedAt, li.*
-    FROM reading_list rl
-    JOIN library_items li ON li.id = rl.itemId
-    WHERE rl.userId = ?
-    ORDER BY rl.addedAt DESC
-  `).all(userId);
+export async function getReadingListByUser(userId) {
+  const entries = await ReadingList.find({ userId }).sort({ addedAt: -1 }).populate('item').exec();
+  return entries.map((entry) => {
+    const item = mapLibraryItem(entry.item);
+    return {
+      ...(item || {}),
+      listId: entry.id,
+      addedAt: entry.addedAt instanceof Date ? entry.addedAt.toISOString() : entry.addedAt
+    };
+  });
 }
 
-export function removeFromReadingList(userId, itemId) {
-  db.prepare('DELETE FROM reading_list WHERE userId = ? AND itemId = ?').run(userId, itemId);
+export async function removeFromReadingList(userId, itemId) {
+  await ReadingList.deleteOne({ userId, itemId }).exec();
   return { success: true };
 }
 
-export function getAllBorrowedItems() {
-  const rows = db.prepare(`
-    SELECT bi.*, 
-           u.name as userName, u.email as userEmail,
-           li.title, li.author, li.coverImage
-    FROM borrowed_items bi
-    JOIN users u ON u.id = bi.userId
-    JOIN library_items li ON li.id = bi.itemId
-    ORDER BY bi.borrowDate ASC
-  `).all();
-
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.userId,
-    borrowDate: row.borrowDate,
-    dueDate: row.dueDate,
-    renewals: row.renewals,
-    user: { name: row.userName, email: row.userEmail },
-    item: { id: row.itemId, title: row.title, author: row.author, coverImage: row.coverImage }
-  }));
+export async function getAllBorrowedItems() {
+  const records = await BorrowedItem.find().sort({ borrowDate: 1 }).populate('item').populate('user').exec();
+  return records.map((record) => {
+    const plain = docToPlain(record);
+    return {
+      id: plain.id,
+      userId: plain.userId,
+      borrowDate: plain.borrowDate,
+      dueDate: plain.dueDate,
+      renewals: plain.renewals,
+      user: {
+        name: record.user?.name ?? '',
+        email: record.user?.email ?? ''
+      },
+      item: {
+        id: record.item?.id ?? plain.itemId,
+        title: record.item?.title ?? '',
+        author: record.item?.author ?? '',
+        coverImage: record.item?.coverImage
+      }
+    };
+  });
 }
 
-export function returnItem(borrowedId) {
-  const borrowed = db.prepare('SELECT * FROM borrowed_items WHERE id = ?').get(borrowedId);
+export async function returnItem(borrowedId) {
+  const borrowed = await BorrowedItem.findById(borrowedId).exec();
   if (!borrowed) throw new Error('Borrowed item not found');
 
-  db.transaction(() => {
-    // Make book available again
-    db.prepare("UPDATE library_items SET status = 'available' WHERE id = ?").run(borrowed.itemId);
-    // Remove from borrowed list
-    db.prepare("DELETE FROM borrowed_items WHERE id = ?").run(borrowedId);
-  })();
-
+  await BorrowedItem.deleteOne({ _id: borrowedId }).exec();
+  await LibraryItem.updateOne({ _id: borrowed.itemId }, { status: 'available' }).exec();
   return { success: true };
 }
 
-export function placeHold(itemId, userEmail) {
-  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(userEmail);
+export async function placeHold(itemId, userEmail) {
+  const user = await User.findOne({ email: userEmail }).exec();
   if (!user) throw new Error('User not found with that email.');
 
-  const item = db.prepare('SELECT status FROM library_items WHERE id = ?').get(itemId);
+  const item = await LibraryItem.findById(itemId).exec();
   if (!item || item.status !== 'available') throw new Error('Item is not available to hold.');
 
-  const holdId = randomUUID();
-  db.transaction(() => {
-    db.prepare("UPDATE library_items SET status = 'on-hold' WHERE id = ?").run(itemId);
-    db.prepare("INSERT INTO holds (id, userId, itemId, holdDate) VALUES (?, ?, ?, ?)").run(holdId, user.id, itemId, new Date().toISOString());
-  })();
+  item.status = 'on-hold';
+  await item.save();
+
+  await Hold.create({
+    userId: user.id,
+    itemId,
+    holdDate: new Date().toISOString()
+  });
 
   return { success: true };
 }
 
-export function removeHold(holdId) {
-  const hold = db.prepare('SELECT itemId FROM holds WHERE id = ?').get(holdId);
+export async function removeHold(holdId) {
+  const hold = await Hold.findById(holdId).exec();
   if (!hold) throw new Error('Hold record not found');
 
-  db.transaction(() => {
-    db.prepare("UPDATE library_items SET status = 'available' WHERE id = ?").run(hold.itemId);
-    db.prepare("DELETE FROM holds WHERE id = ?").run(holdId);
-  })();
+  await Hold.deleteOne({ _id: holdId }).exec();
+  await LibraryItem.updateOne({ _id: hold.itemId }, { status: 'available' }).exec();
   return { success: true };
 }
 
-export function getHoldsByUser(userId) {
-  const rows = db.prepare(`
-    SELECT h.id as holdId, h.holdDate, li.id, li.title, li.author, li.coverImage, li.status
-    FROM holds h
-    JOIN library_items li ON li.id = h.itemId
-    WHERE h.userId = ?
-    ORDER BY h.holdDate DESC
-  `).all(userId);
-
-  return rows.map(row => ({
-    id: row.holdId, holdDate: row.holdDate,
-    item: { id: row.id, title: row.title, author: row.author, coverImage: row.coverImage, status: row.status }
+export async function getHoldsByUser(userId) {
+  const holds = await Hold.find({ userId }).sort({ holdDate: -1 }).populate('item').exec();
+  return holds.map((hold) => ({
+    id: hold.id,
+    holdDate: hold.holdDate,
+    item: mapLibraryItem(hold.item)
   }));
 }
 
-export function getAllHolds() {
-  const rows = db.prepare(`
-    SELECT h.id as holdId, h.holdDate, u.name as userName, u.email as userEmail, li.id, li.title, li.author, li.coverImage
-    FROM holds h
-    JOIN users u ON u.id = h.userId
-    JOIN library_items li ON li.id = h.itemId
-    ORDER BY h.holdDate DESC
-  `).all();
-
-  return rows.map(row => ({
-    id: row.holdId, holdDate: row.holdDate,
-    user: { name: row.userName, email: row.userEmail },
-    item: { id: row.id, title: row.title, author: row.author, coverImage: row.coverImage }
+export async function getAllHolds() {
+  const holds = await Hold.find().sort({ holdDate: -1 }).populate('item').populate('user').exec();
+  return holds.map((hold) => ({
+    id: hold.id,
+    holdDate: hold.holdDate,
+    item: mapLibraryItem(hold.item),
+    user: {
+      name: hold.user?.name ?? '',
+      email: hold.user?.email ?? ''
+    }
   }));
 }

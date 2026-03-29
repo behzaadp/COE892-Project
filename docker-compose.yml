@@ -21,13 +21,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     environment:
-      - PORT=4000
-      - GRPC_PORT=50051
-      - RABBITMQ_URL=amqp://rabbitmq
-      - RABBITMQ_EXCHANGE=library.events
-      - RABBITMQ_NOTIFICATIONS_QUEUE=library.notifications
-      - RABBITMQ_HOLDS_QUEUE=library.holds
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     ports:
       - "4000:4000"
       - "50051:50051"

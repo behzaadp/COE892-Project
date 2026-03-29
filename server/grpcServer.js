@@ -68,21 +68,21 @@ function grpcErrorFrom(error) {
 }
 
 const serviceImplementation = {
-  ListLibraryItems(call, callback) {
+  async ListLibraryItems(call, callback) {
     try {
-      const items = listLibraryItems(call.request ?? {});
+      const items = await listLibraryItems(call.request ?? {});
       callback(null, { items: items.map(mapLibraryItem) });
     } catch (error) {
       callback(grpcErrorFrom(error));
     }
   },
-  GetLibraryItem(call, callback) {
+  async GetLibraryItem(call, callback) {
     try {
       const id = call.request?.id;
       if (!id) {
         return callback(grpcErrorFrom({ statusCode: 400, message: 'id is required' }));
       }
-      const item = getLibraryItemById(id);
+      const item = await getLibraryItemById(id);
       if (!item) {
         return callback(grpcErrorFrom({ statusCode: 404, message: 'Item not found' }));
       }
@@ -91,13 +91,13 @@ const serviceImplementation = {
       callback(grpcErrorFrom(error));
     }
   },
-  GetUserBorrowedItems(call, callback) {
+  async GetUserBorrowedItems(call, callback) {
     try {
       const userId = call.request?.userId;
       if (!userId) {
         return callback(grpcErrorFrom({ statusCode: 400, message: 'userId is required' }));
       }
-      const records = getBorrowedItemsByUser(userId);
+      const records = await getBorrowedItemsByUser(userId);
       callback(null, { borrowed: records.map(mapBorrowedRecord) });
     } catch (error) {
       callback(grpcErrorFrom(error));
@@ -130,11 +130,11 @@ const serviceImplementation = {
       if (!userId || !itemId) {
         return callback(grpcErrorFrom({ statusCode: 400, message: 'userId and itemId are required' }));
       }
-      const user = getUserById(userId);
+      const user = await getUserById(userId);
       if (!user) {
         return callback(grpcErrorFrom({ statusCode: 404, message: 'User not found' }));
       }
-      const item = getLibraryItemById(itemId);
+      const item = await getLibraryItemById(itemId);
       if (!item) {
         return callback(grpcErrorFrom({ statusCode: 404, message: 'Library item not found' }));
       }

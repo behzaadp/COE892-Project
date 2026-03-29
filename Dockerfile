@@ -1,15 +1,15 @@
-# Use Node image
-FROM node:18
+# Backend container for the Express + gRPC API
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
-COPY server/package*.json ./
-RUN npm install
+# Install only production dependencies from the root package.json
+COPY package*.json ./
+RUN npm install --omit=dev
 
-# Copy backend code
-COPY server/ .
+# Copy backend source
+COPY server ./server
+WORKDIR /app/server
 
-# Run correct file
 EXPOSE 4000 50051
 CMD ["node", "index.js"]

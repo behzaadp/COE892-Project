@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { User, AdminBorrowedItem, AdminHoldItem } from '../types';
-import { Shield, Book, User as UserIcon, CheckCircle, Calendar, RefreshCw, Package, XCircle } from 'lucide-react';
+import { Shield, Book, User as UserIcon, CheckCircle, RefreshCw, Package, XCircle } from 'lucide-react';
 import { fetchAllBorrowedItems, returnBorrowedItem, fetchAllHolds, removeAdminHold } from '../lib/api';
 
 interface AdminDashboardProps {
